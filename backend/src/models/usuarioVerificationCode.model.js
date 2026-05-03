@@ -2,7 +2,7 @@ const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
   const UsuarioVerificationCode = sequelize.define(
-    'UsuarioVerificationCode',
+    'usuario_verification_code',
     {
       id: {
         type: DataTypes.BIGINT.UNSIGNED,

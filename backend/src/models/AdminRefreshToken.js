@@ -2,7 +2,7 @@ const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
   const AdminRefreshToken = sequelize.define(
-    'AdminRefreshToken',
+    'admin_refresh_token',
     {
       id: {
         type: DataTypes.BIGINT.UNSIGNED,

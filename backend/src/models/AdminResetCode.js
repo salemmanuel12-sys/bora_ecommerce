@@ -2,7 +2,7 @@ const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
   const AdminResetCode = sequelize.define(
-    'AdminResetCode',
+    'admin_reset_code',
     {
       id: {
         type: DataTypes.BIGINT.UNSIGNED,

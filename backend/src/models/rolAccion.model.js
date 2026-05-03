@@ -2,7 +2,7 @@ const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
   const RolAccion = sequelize.define(
-    'RolAccion',
+    'rol_accion',
     {
       ID_ROL_ACCION: {
         type: DataTypes.INTEGER,
