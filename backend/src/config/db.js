@@ -12,6 +12,10 @@ const sequelize = new Sequelize(
     dialect: 'mysql',
     timezone: DB_TIMEZONE,
     logging: false,
+    define: {
+      freezeTableName: true,   // 👈 CLAVE GLOBAL
+      underscored: false
+    },
   }
 );
 
