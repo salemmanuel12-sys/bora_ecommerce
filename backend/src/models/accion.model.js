@@ -112,7 +112,7 @@ module.exports = (sequelize) => {
       },
     },
     {
-      tableName: 'ACCION',
+      tableName: 'accion',
       timestamps: false,
       underscored: false,
       indexes: [

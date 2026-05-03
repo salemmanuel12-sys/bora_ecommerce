@@ -178,7 +178,7 @@ module.exports = (sequelize) => {
       },
     },
     {
-      tableName: 'ADMINISTRADOR',
+      tableName: 'administrador',
       timestamps: false,
       underscored: false,
     }

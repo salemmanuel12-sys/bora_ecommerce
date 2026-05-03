@@ -58,7 +58,7 @@ module.exports = (sequelize) => {
       },
     },
     {
-      tableName: 'ADMIN_REFRESH_TOKEN',
+      tableName: 'admin_refresh_tokens',
       timestamps: false,
       underscored: true,
       indexes: [

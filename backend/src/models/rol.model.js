@@ -103,7 +103,7 @@ module.exports = (sequelize) => {
       },
     },
     {
-      tableName: 'ROL',
+      tableName: 'rol',
       timestamps: false,
       underscored: false,
     }

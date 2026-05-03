@@ -32,7 +32,7 @@ module.exports = (sequelize) => {
       },
     },
     {
-      tableName: 'ROL_MODULO',
+      tableName: 'rol_modulo',
       timestamps: false,
       underscored: false,
       indexes: [

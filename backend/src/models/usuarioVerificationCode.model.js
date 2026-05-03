@@ -47,7 +47,7 @@ module.exports = (sequelize) => {
       },
     },
     {
-      tableName: 'USUARIO_VERIFICATION_CODE',
+      tableName: 'usuario_verification_codes',
       timestamps: false,
       underscored: true,
       indexes: [{ fields: ['user_id'] }, { fields: ['expires_at'] }],

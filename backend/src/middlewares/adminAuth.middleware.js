@@ -11,9 +11,8 @@ function getRequiredAccessSecret() {
   return value;
 }
 
-const accessSecret = getRequiredAccessSecret();
-
 function adminAuthMiddleware(req, _res, next) {
+  const accessSecret = getRequiredAccessSecret();
   try {
     const authHeader = req.headers.authorization || '';
     const [scheme, token] = authHeader.split(' ');

@@ -47,7 +47,7 @@ module.exports = (sequelize) => {
       },
     },
     {
-      tableName: 'ADMIN_RESET_CODE',
+      tableName: 'admin_reset_codes',
       timestamps: false,
       underscored: true,
       indexes: [{ fields: ['admin_id'] }, { fields: ['expires_at'] }],
