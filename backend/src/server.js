@@ -1,6 +1,7 @@
 require('./config/env');
 
 const { sequelize } = require('./config/db');
+console.log('🚀 VERSION NUEVA DEL SERVER');
 
 // 🔥 INICIALIZA MODELOS ANTES DE CUALQUIER REQUIRE
 require('./models/loader');
