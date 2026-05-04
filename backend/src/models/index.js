@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const sequelize = db.sequelize;
 const setupPermisosAssociations = require('./permiso.associations');
+console.log('🔥 sequelize en models:', sequelize);
 
 const Administrador = require('./Administrador')(sequelize);
 const Rol = require('./rol.model')(sequelize);
