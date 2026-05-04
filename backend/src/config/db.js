@@ -1,3 +1,6 @@
+require('dotenv').config({
+  path: require('path').resolve(__dirname, '../../.env')
+});
 const { Sequelize } = require('sequelize');
 
 const DB_TIMEZONE = process.env.DB_TIMEZONE || '-06:00';
