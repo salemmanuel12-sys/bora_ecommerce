@@ -1,17 +1,19 @@
 const path = require('path');
+
 require('dotenv').config({
-  path: path.resolve(__dirname, '../../.env')
+  path: path.resolve(process.cwd(), '.env')
 });
 
-function getEnv(key, minLength = 0) {
+function getEnv(key, defaultValue = undefined, minLength = 0) {
   const value = process.env[key];
 
   if (!value) {
+    if (defaultValue !== undefined) return defaultValue;
     throw new Error(`❌ Missing env: ${key}`);
   }
 
   if (minLength && value.length < minLength) {
-    throw new Error(`❌ Missing env: ${key} (min length ${minLength})`);
+    throw new Error(`❌ Env too short: ${key}`);
   }
 
   return value;

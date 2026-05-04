@@ -1,7 +1,7 @@
 const { getEnv } = require('./env');
 const { Sequelize } = require('sequelize');
 
-const DB_TIMEZONE = getEnv('DB_TIMEZONE', 1) || '-06:00';
+
 
 const sequelize = new Sequelize(
   getEnv('DB_NAME', 1),
@@ -11,7 +11,7 @@ const sequelize = new Sequelize(
     host: getEnv('DB_HOST', 1),
     port: Number(getEnv('DB_PORT', 1)) || 3306,
     dialect: 'mysql',
-    timezone: DB_TIMEZONE,
+    timezone: getEnv('DB_TIMEZONE', '-06:00'),
     logging: false,
   }
 );
