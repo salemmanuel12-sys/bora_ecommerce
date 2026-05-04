@@ -33,10 +33,10 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://localhost:5175',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:5175',
-  'http://www.ysaakyuniell.com',
-  'https://www.ysaakyuniell.com',
-  'http://ysaakyuniell.com',
-  'https://ysaakyuniell.com',
+  'http://www.isaakyuniell.com',
+  'https://www.isaakyuniell.com',
+  'http://isaakyuniell.com',
+  'https://isaakyuniell.com',
 ];  
 
 const envOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || '')
