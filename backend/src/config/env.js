@@ -1,21 +1,20 @@
-
 const path = require('path');
-
-// Cargar SIEMPRE .env desde raíz del backend
-dotenv.config({
-  path: path.resolve(__dirname, '../../../.env')
+require('dotenv').config({
+  path: path.resolve(__dirname, '../../.env')
 });
 
-function getEnv(name, minLength = 1) {
-  const value = process.env[name];
+function getEnv(key, minLength = 0) {
+  const value = process.env[key];
 
-  if (!value || value.length < minLength) {
-    throw new Error(`❌ Missing env: ${name} (min length ${minLength})`);
+  if (!value) {
+    throw new Error(`❌ Missing env: ${key}`);
+  }
+
+  if (minLength && value.length < minLength) {
+    throw new Error(`❌ Missing env: ${key} (min length ${minLength})`);
   }
 
   return value;
 }
 
-module.exports = {
-  getEnv
-};
+module.exports = { getEnv };

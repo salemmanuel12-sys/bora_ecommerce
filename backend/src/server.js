@@ -1,4 +1,3 @@
-require('./bootstrap/env');
 
 const app = require('./app');
 const { testDatabaseConnection } = require('./config/db');
