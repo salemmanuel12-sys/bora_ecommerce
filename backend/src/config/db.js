@@ -1,6 +1,3 @@
-require('dotenv').config({
-  path: require('path').resolve(__dirname, '../../.env')
-});
 const { Sequelize } = require('sequelize');
 
 const DB_TIMEZONE = process.env.DB_TIMEZONE || '-06:00';
@@ -15,10 +12,6 @@ const sequelize = new Sequelize(
     dialect: 'mysql',
     timezone: DB_TIMEZONE,
     logging: false,
-    define: {
-      freezeTableName: true,   // 👈 CLAVE GLOBAL
-      underscored: false
-    },
   }
 );
 

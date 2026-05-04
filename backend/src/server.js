@@ -1,4 +1,4 @@
-
+require('./config/env'); // PRIMERO SIEMPRE
 const app = require('./app');
 const { testDatabaseConnection } = require('./config/db');
 
