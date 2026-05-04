@@ -1,6 +1,11 @@
+require('./config/env');
+
 const { sequelize } = require('./config/db');
-const initModels = require('./models/loader'); // 👈 SOLO ESTO
-const app = require('./app');
+
+// 🔥 INICIALIZA MODELOS ANTES DE CUALQUIER REQUIRE
+require('./models/loader');
+
+const app = require('./app'); // 👈 después de modelos
 const { testDatabaseConnection } = require('./config/db');
 
 const PORT = Number(process.env.PORT) || 4000;
@@ -12,6 +17,7 @@ const startServer = async () => {
     app.listen(PORT, () => {
       console.log(`Servidor backend escuchando en puerto ${PORT}`);
     });
+
   } catch (error) {
     console.error('Error al iniciar el servidor:', error.message);
     process.exit(1);
