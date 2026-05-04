@@ -1,4 +1,4 @@
-const dotenv = require('dotenv');
+
 const path = require('path');
 
 // Cargar SIEMPRE .env desde raíz del backend
