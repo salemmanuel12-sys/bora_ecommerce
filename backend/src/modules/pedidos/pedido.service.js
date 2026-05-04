@@ -1,4 +1,4 @@
-const { sequelize, Order, OrderItem, Cart, CartItem, Producto, Address, Tarjeta, Payment, Shipment, Notification, Usuario } = require('../../models');
+const { sequelize, Order, OrderItem, Cart, CartItem, Producto, Address, Tarjeta, Payment, Shipment, Notification, Usuario } = require('../../models/loader');
 const HttpError = require('../../utils/httpError');
 const { getOrCreateActiveCart } = require('../carrito/carrito.service');
 const { notifyNuevaOrden } = require('../../services/whatsapp.service');

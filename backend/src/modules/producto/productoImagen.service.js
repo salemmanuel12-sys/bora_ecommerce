@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-const { ProductoImagen, Producto } = require('../../models');
+const { ProductoImagen, Producto } = require('../../models/loader');
 const HttpError = require('../../utils/httpError');
 
 const UPLOAD_DIR = path.join(__dirname, '..', '..', '..', 'uploadsImages', 'productos');
