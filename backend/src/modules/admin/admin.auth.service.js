@@ -3,7 +3,9 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { Op } = require('sequelize');
 const HttpError = require('../../utils/httpError');
-const { Administrador, AdminRefreshToken, AdminResetCode } = require('../../models/loader');
+const { sequelize } = require('../../config/db');
+const initModels = require('../../models');
+const { Administrador, AdminRefreshToken, AdminResetCode } = initModels(sequelize);
 const { sendResetCode } = require('../../utils/email');
 const emailService = require('../../services/emailService');
 const {

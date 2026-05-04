@@ -1,198 +1,57 @@
-module.exports = (sequelize) => {
-  const setupPermisosAssociations = require('./permiso.associations');
+// src/models/index.js
 
-  // ── MODELOS ─────────────────────────────────────────────
-  const Administrador = require('./Administrador')(sequelize);
-  const Rol = require('./rol.model')(sequelize);
-  const Modulo = require('./modulo.model')(sequelize);
-  const Submodulo = require('./submodulo.model')(sequelize);
-  const Accion = require('./accion.model')(sequelize);
-  const RolModulo = require('./rolModulo.model')(sequelize);
-  const RolSubmodulo = require('./rolSubmodulo.model')(sequelize);
-  const RolAccion = require('./rolAccion.model')(sequelize);
-  const AdminRefreshToken = require('./AdminRefreshToken')(sequelize);
-  const AdminResetCode = require('./AdminResetCode')(sequelize);
-  const Categoria = require('./categoria.model')(sequelize);
-  const Subcategoria = require('./subcategoria.model')(sequelize);
-  const Producto = require('./producto.model')(sequelize);
-  const ProductoImagen = require('./productoImagen.model')(sequelize);
-  const ProductoOpinion = require('./productoOpinion.model')(sequelize);
-  const Banner = require('./banner.model')(sequelize);
-  const Usuario = require('./usuario.model')(sequelize);
-  const Cart = require('./cart.model')(sequelize);
-  const CartItem = require('./cartItem.model')(sequelize);
-  const Order = require('./order.model')(sequelize);
-  const OrderItem = require('./orderItem.model')(sequelize);
-  const Address = require('./address.model')(sequelize);
-  const Tarjeta = require('./tarjeta.model')(sequelize);
-  const Payment = require('./payment.model')(sequelize);
-  const Shipment = require('./shipment.model')(sequelize);
-  const Notification = require('./notification.model')(sequelize);
-  const UsuarioVerificationCode = require('./usuarioVerificationCode.model')(sequelize);
+const setupPermisosAssociations = require('./permiso.associations');
 
-  // ── RELACIONES ──────────────────────────────────────────
+let db = {}; // cache singleton
 
-  Administrador.belongsTo(Rol, {
-    foreignKey: 'ROL_ID',
-    targetKey: 'ID_ROL',
-    as: 'rol',
-  });
+function initModels(sequelize) {
+  if (Object.keys(db).length) {
+    return db; // 👈 evita reinicializar
+  }
 
-  Rol.hasMany(Administrador, {
-    foreignKey: 'ROL_ID',
-    sourceKey: 'ID_ROL',
-    as: 'administradores',
-  });
+  // =========================
+  // MODELOS
+  // =========================
+  db.Administrador = require('./Administrador')(sequelize);
+  db.Rol = require('./rol.model')(sequelize);
+  db.Modulo = require('./modulo.model')(sequelize);
+  db.Submodulo = require('./submodulo.model')(sequelize);
+  db.Accion = require('./accion.model')(sequelize);
+  db.RolModulo = require('./rolModulo.model')(sequelize);
+  db.RolSubmodulo = require('./rolSubmodulo.model')(sequelize);
+  db.RolAccion = require('./rolAccion.model')(sequelize);
 
-  Administrador.hasMany(AdminRefreshToken, {
-    foreignKey: 'adminId',
-    sourceKey: 'NUM_ADMIN',
-    as: 'refreshTokens',
-  });
+  db.AdminRefreshToken = require('./AdminRefreshToken')(sequelize);
+  db.AdminResetCode = require('./AdminResetCode')(sequelize);
 
-  AdminRefreshToken.belongsTo(Administrador, {
-    foreignKey: 'adminId',
-    targetKey: 'NUM_ADMIN',
-    as: 'admin',
-  });
+  db.Categoria = require('./categoria.model')(sequelize);
+  db.Subcategoria = require('./subcategoria.model')(sequelize);
+  db.Producto = require('./producto.model')(sequelize);
+  db.ProductoImagen = require('./productoImagen.model')(sequelize);
+  db.ProductoOpinion = require('./productoOpinion.model')(sequelize);
+  db.Banner = require('./banner.model')(sequelize);
 
-  Administrador.hasMany(AdminResetCode, {
-    foreignKey: 'adminId',
-    sourceKey: 'NUM_ADMIN',
-    as: 'resetCodes',
-  });
+  db.Usuario = require('./usuario.model')(sequelize);
+  db.Cart = require('./cart.model')(sequelize);
+  db.CartItem = require('./cartItem.model')(sequelize);
 
-  AdminResetCode.belongsTo(Administrador, {
-    foreignKey: 'adminId',
-    targetKey: 'NUM_ADMIN',
-    as: 'admin',
-  });
+  db.Order = require('./order.model')(sequelize);
+  db.OrderItem = require('./orderItem.model')(sequelize);
 
-  Subcategoria.belongsTo(Categoria, {
-    foreignKey: 'categoriaId',
-    targetKey: 'id',
-    as: 'categoria',
-  });
+  db.Address = require('./address.model')(sequelize);
+  db.Tarjeta = require('./tarjeta.model')(sequelize);
+  db.Payment = require('./payment.model')(sequelize);
+  db.Shipment = require('./shipment.model')(sequelize);
 
-  Categoria.hasMany(Subcategoria, {
-    foreignKey: 'categoriaId',
-    sourceKey: 'id',
-    as: 'subcategorias',
-  });
+  db.Notification = require('./notification.model')(sequelize);
+  db.UsuarioVerificationCode = require('./usuarioVerificationCode.model')(sequelize);
 
-  Producto.belongsTo(Subcategoria, {
-    foreignKey: 'subcategoriaId',
-    targetKey: 'id',
-    as: 'subcategoria',
-  });
+  // =========================
+  // ASOCIACIONES
+  // =========================
 
-  Subcategoria.hasMany(Producto, {
-    foreignKey: 'subcategoriaId',
-    sourceKey: 'id',
-    as: 'productos',
-  });
-
-  ProductoImagen.belongsTo(Producto, {
-    foreignKey: 'productoId',
-    targetKey: 'id',
-    as: 'producto',
-  });
-
-  Producto.hasMany(ProductoImagen, {
-    foreignKey: 'productoId',
-    sourceKey: 'id',
-    as: 'imagenes',
-  });
-
-  ProductoOpinion.belongsTo(Producto, {
-    foreignKey: 'productoId',
-    targetKey: 'id',
-    as: 'producto',
-  });
-
-  Producto.hasMany(ProductoOpinion, {
-    foreignKey: 'productoId',
-    sourceKey: 'id',
-    as: 'opiniones',
-  });
-
-  setupPermisosAssociations({
-    Rol,
-    Modulo,
-    Submodulo,
-    Accion,
-    RolModulo,
-    RolSubmodulo,
-    RolAccion,
-  });
-
-  // ── CARRITO ─────────────────────────────────────────────
-  Usuario.hasMany(Cart, { foreignKey: 'userId', as: 'carts' });
-  Cart.belongsTo(Usuario, { foreignKey: 'userId', as: 'usuario' });
-
-  Cart.hasMany(CartItem, { foreignKey: 'cartId', as: 'items' });
-  CartItem.belongsTo(Cart, { foreignKey: 'cartId', as: 'cart' });
-
-  CartItem.belongsTo(Producto, { foreignKey: 'productId', as: 'producto' });
-  Producto.hasMany(CartItem, { foreignKey: 'productId', as: 'cartItems' });
-
-  // ── PEDIDOS ─────────────────────────────────────────────
-  Usuario.hasMany(Order, { foreignKey: 'userId', as: 'orders' });
-  Order.belongsTo(Usuario, { foreignKey: 'userId', as: 'usuario' });
-
-  Order.hasMany(OrderItem, { foreignKey: 'orderId', as: 'items' });
-  OrderItem.belongsTo(Order, { foreignKey: 'orderId', as: 'order' });
-
-  OrderItem.belongsTo(Producto, { foreignKey: 'productId', as: 'producto' });
-  Producto.hasMany(OrderItem, { foreignKey: 'productId', as: 'orderItems' });
-
-  Order.belongsTo(Address, { foreignKey: 'shippingAddressId', as: 'shippingAddress' });
-
-  // ── DIRECCIONES ─────────────────────────────────────────
-  Usuario.hasMany(Address, { foreignKey: 'userId', as: 'addresses' });
-  Address.belongsTo(Usuario, { foreignKey: 'userId', as: 'usuario' });
-
-  // ── OPINIONES ───────────────────────────────────────────
-  Usuario.hasMany(ProductoOpinion, { foreignKey: 'userId', as: 'opinionesProducto' });
-  ProductoOpinion.belongsTo(Usuario, { foreignKey: 'userId', as: 'usuario' });
-
-  // ── TARJETAS ────────────────────────────────────────────
-  Usuario.hasMany(Tarjeta, { foreignKey: 'userId', as: 'tarjetas' });
-  Tarjeta.belongsTo(Usuario, { foreignKey: 'userId', as: 'usuario' });
-
-  // ── PAGOS ───────────────────────────────────────────────
-  Order.hasOne(Payment, { foreignKey: 'orderId', as: 'payment' });
-  Payment.belongsTo(Order, { foreignKey: 'orderId', as: 'order' });
-
-  Tarjeta.hasMany(Payment, { foreignKey: 'cardId', as: 'payments' });
-  Payment.belongsTo(Tarjeta, { foreignKey: 'cardId', as: 'tarjeta' });
-
-  // ── ENVÍOS ──────────────────────────────────────────────
-  Order.hasOne(Shipment, { foreignKey: 'orderId', as: 'shipment' });
-  Shipment.belongsTo(Order, { foreignKey: 'orderId', as: 'order' });
-
-  // ── NOTIFICACIONES ──────────────────────────────────────
-  Usuario.hasMany(Notification, {
-    foreignKey: { name: 'userId', allowNull: true },
-    as: 'notifications',
-  });
-
-  Notification.belongsTo(Usuario, {
-    foreignKey: { name: 'userId', allowNull: true },
-    as: 'usuario',
-    onDelete: 'SET NULL',
-    onUpdate: 'CASCADE',
-  });
-
-  // ── VERIFICACIÓN ────────────────────────────────────────
-  Usuario.hasMany(UsuarioVerificationCode, { foreignKey: 'userId', as: 'verificationCodes' });
-  UsuarioVerificationCode.belongsTo(Usuario, { foreignKey: 'userId', as: 'usuario' });
-
-  // ── EXPORT ──────────────────────────────────────────────
-  return {
+  const {
     Administrador,
-    AdminRefreshToken,
-    AdminResetCode,
     Rol,
     Modulo,
     Submodulo,
@@ -205,7 +64,6 @@ module.exports = (sequelize) => {
     Producto,
     ProductoImagen,
     ProductoOpinion,
-    Banner,
     Usuario,
     Cart,
     CartItem,
@@ -217,5 +75,85 @@ module.exports = (sequelize) => {
     Shipment,
     Notification,
     UsuarioVerificationCode,
-  };
-};
+  } = db;
+
+  // ADMIN
+  Administrador.belongsTo(Rol, { foreignKey: 'ROL_ID', as: 'rol' });
+  Rol.hasMany(Administrador, { foreignKey: 'ROL_ID', as: 'administradores' });
+
+  // PERMISOS
+  setupPermisosAssociations({
+    Rol,
+    Modulo,
+    Submodulo,
+    Accion,
+    RolModulo,
+    RolSubmodulo,
+    RolAccion,
+  });
+
+  // CATEGORÍAS
+  Subcategoria.belongsTo(Categoria, { foreignKey: 'categoriaId', as: 'categoria' });
+  Categoria.hasMany(Subcategoria, { foreignKey: 'categoriaId', as: 'subcategorias' });
+
+  Producto.belongsTo(Subcategoria, { foreignKey: 'subcategoriaId', as: 'subcategoria' });
+  Subcategoria.hasMany(Producto, { foreignKey: 'subcategoriaId', as: 'productos' });
+
+  Producto.hasMany(ProductoImagen, { foreignKey: 'productoId', as: 'imagenes' });
+  ProductoImagen.belongsTo(Producto, { foreignKey: 'productoId', as: 'producto' });
+
+  Producto.hasMany(ProductoOpinion, { foreignKey: 'productoId', as: 'opiniones' });
+  ProductoOpinion.belongsTo(Producto, { foreignKey: 'productoId', as: 'producto' });
+
+  // CARRITO
+  Usuario.hasMany(Cart, { foreignKey: 'userId', as: 'carts' });
+  Cart.belongsTo(Usuario, { foreignKey: 'userId', as: 'usuario' });
+
+  Cart.hasMany(CartItem, { foreignKey: 'cartId', as: 'items' });
+  CartItem.belongsTo(Cart, { foreignKey: 'cartId', as: 'cart' });
+
+  CartItem.belongsTo(Producto, { foreignKey: 'productId', as: 'producto' });
+
+  // PEDIDOS
+  Usuario.hasMany(Order, { foreignKey: 'userId', as: 'orders' });
+  Order.belongsTo(Usuario, { foreignKey: 'userId', as: 'usuario' });
+
+  Order.hasMany(OrderItem, { foreignKey: 'orderId', as: 'items' });
+  OrderItem.belongsTo(Order, { foreignKey: 'orderId', as: 'order' });
+
+  OrderItem.belongsTo(Producto, { foreignKey: 'productId', as: 'producto' });
+
+  Order.belongsTo(Address, { foreignKey: 'shippingAddressId', as: 'shippingAddress' });
+
+  // DIRECCIONES
+  Usuario.hasMany(Address, { foreignKey: 'userId', as: 'addresses' });
+  Address.belongsTo(Usuario, { foreignKey: 'userId', as: 'usuario' });
+
+  // TARJETAS / PAGOS
+  Usuario.hasMany(Tarjeta, { foreignKey: 'userId', as: 'tarjetas' });
+  Tarjeta.belongsTo(Usuario, { foreignKey: 'userId', as: 'usuario' });
+
+  Order.hasOne(Payment, { foreignKey: 'orderId', as: 'payment' });
+  Payment.belongsTo(Order, { foreignKey: 'orderId', as: 'order' });
+
+  Tarjeta.hasMany(Payment, { foreignKey: 'cardId', as: 'payments' });
+  Payment.belongsTo(Tarjeta, { foreignKey: 'cardId', as: 'tarjeta' });
+
+  // ENVÍOS
+  Order.hasOne(Shipment, { foreignKey: 'orderId', as: 'shipment' });
+  Shipment.belongsTo(Order, { foreignKey: 'orderId', as: 'order' });
+
+  // NOTIFICACIONES
+  Usuario.hasMany(Notification, { foreignKey: 'userId', as: 'notifications' });
+  Notification.belongsTo(Usuario, { foreignKey: 'userId', as: 'usuario' });
+
+  // VERIFICACIÓN
+  Usuario.hasMany(UsuarioVerificationCode, { foreignKey: 'userId', as: 'verificationCodes' });
+  UsuarioVerificationCode.belongsTo(Usuario, { foreignKey: 'userId', as: 'usuario' });
+
+  db.sequelize = sequelize;
+
+  return db;
+}
+
+module.exports = initModels;

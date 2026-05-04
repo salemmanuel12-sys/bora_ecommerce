@@ -1,7 +1,6 @@
-const { getEnv } = require('./env');
+// src/config/db.js
 const { Sequelize } = require('sequelize');
-
-
+const { getEnv } = require('./env');
 
 const sequelize = new Sequelize(
   getEnv('DB_NAME', 1),
@@ -17,13 +16,8 @@ const sequelize = new Sequelize(
 );
 
 const testDatabaseConnection = async () => {
-  try {
-    await sequelize.authenticate();
-    console.log('Conexion a MySQL exitosa con Sequelize.');
-  } catch (error) {
-    console.error('No se pudo conectar a MySQL:', error.message);
-    throw error;
-  }
+  await sequelize.authenticate();
+  console.log('✅ DB conectada');
 };
 
 module.exports = {
