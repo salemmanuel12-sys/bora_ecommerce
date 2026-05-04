@@ -14,32 +14,14 @@ const {
   isValidResetCode,
 } = require('../../utils/adminAuth.validation');
 
-function getRequiredEnv(name) {
-  const value = process.env[name];
+const { getEnv } = require('../../config/env');
 
-  if (!value || value.length < 32) {
-    throw new Error(`La variable ${name} es obligatoria y debe tener al menos 32 caracteres.`);
-  }
+const ACCESS_SECRET = getEnv('JWT_ACCESS_SECRET', 32);
+const REFRESH_SECRET = getEnv('JWT_REFRESH_SECRET', 32);
+const RESET_SECRET = getEnv('JWT_RESET_SECRET', 32);
+const ACCESS_EXPIRES_IN = getEnv('JWT_ACCESS_EXPIRES_IN', 1) || '15m';
+const REFRESH_EXPIRES_IN = getEnv('JWT_REFRESH_EXPIRES_IN', 1) || '7d';
 
-  return value;
-}
-
-// Lazy cache (evita leer env múltiples veces y evita crash en import)
-let _secrets = null;
-
-function getSecrets() {
-  if (!_secrets) {
-    _secrets = {
-      ACCESS_SECRET: getRequiredEnv('JWT_ACCESS_SECRET'),
-      REFRESH_SECRET: getRequiredEnv('JWT_REFRESH_SECRET'),
-      RESET_SECRET: getRequiredEnv('JWT_RESET_SECRET'),
-      ACCESS_EXPIRES_IN: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
-      REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
-    };
-  }
-
-  return _secrets;
-}
 function publicAdmin(admin) {
   const data = admin.get ? admin.get({ plain: true }) : admin;
 
@@ -78,14 +60,14 @@ async function issueTokens(admin, meta) {
       rol: admin.ROL_ID,
       type: 'access',
     },
-    getSecrets().ACCESS_SECRET,
-    { algorithm: 'HS256', expiresIn: getSecrets().ACCESS_EXPIRES_IN }
+    ACCESS_SECRET,
+    { algorithm: 'HS256', expiresIn: ACCESS_EXPIRES_IN }
   );
 
   const refreshToken = jwt.sign(
     { sub: admin.NUM_ADMIN, type: 'refresh', jti: crypto.randomUUID() },
-    getSecrets().REFRESH_SECRET,
-    { algorithm: 'HS256', expiresIn: getSecrets().REFRESH_EXPIRES_IN }
+    REFRESH_SECRET,
+    { algorithm: 'HS256', expiresIn: REFRESH_EXPIRES_IN }
   );
 
   const decoded = jwt.decode(refreshToken);
@@ -103,7 +85,7 @@ async function issueTokens(admin, meta) {
     accessToken,
     refreshToken,
     tokenType: 'Bearer',
-    expiresIn: getSecrets().ACCESS_EXPIRES_IN,
+    expiresIn: ACCESS_EXPIRES_IN,
   };
 }
 
@@ -167,7 +149,7 @@ async function verifyResetCode({ email, code }) {
       jti: crypto.randomUUID(),
       pwdv: getPasswordVersion(admin.PASSWORD),
     },
-    getSecrets().RESET_SECRET,
+    RESET_SECRET,
     { algorithm: 'HS256', expiresIn: '10m' }
   );
 
@@ -186,7 +168,7 @@ async function resetPassword({ resetToken, newPassword }) {
   let payload;
 
   try {
-    payload = jwt.verify(resetToken, getSecrets().RESET_SECRET, { algorithms: ['HS256'] });
+    payload = jwt.verify(resetToken, RESET_SECRET, { algorithms: ['HS256'] });
   } catch {
     throw new HttpError(401, 'Token de reset invalido o expirado.');
   }
@@ -305,7 +287,7 @@ async function refreshSession({ refreshToken, userAgent, ipAddress }) {
   let payload;
 
   try {
-    payload = jwt.verify(refreshToken, getSecrets().REFRESH_SECRET, { algorithms: ['HS256'] });
+    payload = jwt.verify(refreshToken, REFRESH_SECRET, { algorithms: ['HS256'] });
   } catch (_error) {
     throw new HttpError(401, 'Refresh token invalido o expirado.');
   }

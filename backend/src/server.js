@@ -1,9 +1,4 @@
-require('dotenv').config({
-  path: require('path').resolve(__dirname, '../.env')
-});
 
-console.log("JWT_ACCESS_SECRET:", process.env.JWT_ACCESS_SECRET);
-console.log("LENGTH:", process.env.JWT_ACCESS_SECRET?.length);
 
 const app = require('./app');
 const { testDatabaseConnection } = require('./config/db');
