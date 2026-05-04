@@ -24,12 +24,22 @@ function getRequiredEnv(name) {
   return value;
 }
 
-const ACCESS_SECRET = getRequiredEnv('JWT_ACCESS_SECRET');
-const REFRESH_SECRET = getRequiredEnv('JWT_REFRESH_SECRET');
-const RESET_SECRET = getRequiredEnv('JWT_RESET_SECRET');
-const ACCESS_EXPIRES_IN = process.env.JWT_ACCESS_EXPIRES_IN || '15m';
-const REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+// Lazy cache (evita leer env múltiples veces y evita crash en import)
+let _secrets = null;
 
+function getSecrets() {
+  if (!_secrets) {
+    _secrets = {
+      ACCESS_SECRET: getRequiredEnv('JWT_ACCESS_SECRET'),
+      REFRESH_SECRET: getRequiredEnv('JWT_REFRESH_SECRET'),
+      RESET_SECRET: getRequiredEnv('JWT_RESET_SECRET'),
+      ACCESS_EXPIRES_IN: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
+      REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+    };
+  }
+
+  return _secrets;
+}
 function publicAdmin(admin) {
   const data = admin.get ? admin.get({ plain: true }) : admin;
 
@@ -68,14 +78,14 @@ async function issueTokens(admin, meta) {
       rol: admin.ROL_ID,
       type: 'access',
     },
-    ACCESS_SECRET,
-    { algorithm: 'HS256', expiresIn: ACCESS_EXPIRES_IN }
+    getSecrets().ACCESS_SECRET,
+    { algorithm: 'HS256', expiresIn: getSecrets().ACCESS_EXPIRES_IN }
   );
 
   const refreshToken = jwt.sign(
     { sub: admin.NUM_ADMIN, type: 'refresh', jti: crypto.randomUUID() },
-    REFRESH_SECRET,
-    { algorithm: 'HS256', expiresIn: REFRESH_EXPIRES_IN }
+    getSecrets().REFRESH_SECRET,
+    { algorithm: 'HS256', expiresIn: getSecrets().REFRESH_EXPIRES_IN }
   );
 
   const decoded = jwt.decode(refreshToken);
@@ -93,7 +103,7 @@ async function issueTokens(admin, meta) {
     accessToken,
     refreshToken,
     tokenType: 'Bearer',
-    expiresIn: ACCESS_EXPIRES_IN,
+    expiresIn: getSecrets().ACCESS_EXPIRES_IN,
   };
 }
 
@@ -157,7 +167,7 @@ async function verifyResetCode({ email, code }) {
       jti: crypto.randomUUID(),
       pwdv: getPasswordVersion(admin.PASSWORD),
     },
-    RESET_SECRET,
+    getSecrets().RESET_SECRET,
     { algorithm: 'HS256', expiresIn: '10m' }
   );
 
@@ -176,7 +186,7 @@ async function resetPassword({ resetToken, newPassword }) {
   let payload;
 
   try {
-    payload = jwt.verify(resetToken, RESET_SECRET, { algorithms: ['HS256'] });
+    payload = jwt.verify(resetToken, getSecrets().RESET_SECRET, { algorithms: ['HS256'] });
   } catch {
     throw new HttpError(401, 'Token de reset invalido o expirado.');
   }
@@ -295,7 +305,7 @@ async function refreshSession({ refreshToken, userAgent, ipAddress }) {
   let payload;
 
   try {
-    payload = jwt.verify(refreshToken, REFRESH_SECRET, { algorithms: ['HS256'] });
+    payload = jwt.verify(refreshToken, getSecrets().REFRESH_SECRET, { algorithms: ['HS256'] });
   } catch (_error) {
     throw new HttpError(401, 'Refresh token invalido o expirado.');
   }
