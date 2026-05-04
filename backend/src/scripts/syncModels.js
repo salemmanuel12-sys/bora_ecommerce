@@ -1,4 +1,4 @@
-require('dotenv').config();
+
 
 const { sequelize } = require('../config/db');
 
@@ -7,7 +7,7 @@ const NON_MODEL_EXPORTS = ['sequelize'];
 async function syncModels() {
   try {
     // Register all models and associations before sync.
-    const models = require('../models');
+    const models = require('../models/loader');
 
     const requiredModels = Object.keys(models)
       .filter((key) => !NON_MODEL_EXPORTS.includes(key))

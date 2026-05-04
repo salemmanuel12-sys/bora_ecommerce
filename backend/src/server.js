@@ -1,8 +1,5 @@
-require('./config/env'); // PRIMERO SIEMPRE
-
-// 🔥 SOLO IMPORTAR (esto ya inicializa modelos una vez)
-require('./models/loader');
-
+const { sequelize } = require('./config/db');
+const initModels = require('./models/loader'); // 👈 SOLO ESTO
 const app = require('./app');
 const { testDatabaseConnection } = require('./config/db');
 

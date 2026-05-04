@@ -1,14 +1,8 @@
 const { sequelize } = require('../config/db');
 const initModels = require('./index');
 
-let models = null;
+const db = initModels(sequelize);
 
-function getModels() {
-  if (!models) {
-    models = initModels(sequelize);
-    console.log('🔥 MODELOS INICIALIZADOS UNA SOLA VEZ');
-  }
-  return models;
-}
+console.log('🔥 MODELOS INICIALIZADOS UNA SOLA VEZ');
 
-module.exports = getModels();
+module.exports = db;

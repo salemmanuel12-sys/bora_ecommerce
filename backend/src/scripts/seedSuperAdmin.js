@@ -1,8 +1,8 @@
-require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
+
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
 const { sequelize } = require('../config/db');
-const { Administrador, Rol } = require('../models');
+const { Administrador, Rol } = require('../models/loader');
 
 async function seed() {
   try {
