@@ -1,6 +1,6 @@
-const fs = require('fs');
-const path = require('path');
 const dotenv = require('dotenv');
+const path = require('path');
+const fs = require('fs');
 
 const envPath = path.resolve(process.cwd(), '.env');
 
@@ -10,8 +10,16 @@ if (!fs.existsSync(envPath)) {
 
 dotenv.config({ path: envPath });
 
-if (!process.env.JWT_ACCESS_SECRET) {
-  throw new Error('❌ ENV NOT LOADED CORRECTLY');
+console.log('✅ ENV LOADED OK');
+
+function getEnv(name, minLength = 1) {
+  const value = process.env[name];
+
+  if (!value || value.length < minLength) {
+    throw new Error(`❌ Missing env: ${name}`);
+  }
+
+  return value;
 }
 
-console.log('✅ ENV LOADED OK');
+module.exports = { getEnv };
