@@ -1,9 +1,14 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { Op } = require('sequelize');
+const setupModels = require('../../models');
+const { sequelize } = require('../../config/db');
 const HttpError = require('../../utils/httpError');
-const { Administrador, AdminRefreshToken, AdminResetCode } = require('../../models');
+const {
+  Administrador,
+  AdminRefreshToken,
+  AdminResetCode
+} = setupModels(sequelize);
 const { sendResetCode } = require('../../utils/email');
 const emailService = require('../../services/emailService');
 const {
