@@ -29,6 +29,8 @@ const Shipment = require('./shipment.model')(sequelize);
 const Notification = require('./notification.model')(sequelize);
 const UsuarioVerificationCode = require('./usuarioVerificationCode.model')(sequelize);
 
+console.log('SEQUELIZE EN MODELS:', sequelize);
+
 Administrador.belongsTo(Rol, {
   foreignKey: 'ROL_ID',
   targetKey: 'ID_ROL',
