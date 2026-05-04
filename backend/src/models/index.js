@@ -5,6 +5,11 @@ const setupPermisosAssociations = require('./permiso.associations');
 let db = {}; // cache singleton
 
 function initModels(sequelize) {
+  if (!sequelize) {
+    console.error('❌ ERROR: sequelize viene undefined en initModels');
+    throw new Error('Sequelize no inicializado correctamente');
+  }
+
   if (Object.keys(db).length) {
     return db; // 👈 evita reinicializar
   }
