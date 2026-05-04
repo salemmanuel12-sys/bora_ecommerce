@@ -6,7 +6,8 @@ let db = {}; // cache singleton
 
 function initModels(sequelize) {
   if (!sequelize) {
-    console.error('❌ ERROR: sequelize viene undefined en initModels');
+    console.error('❌ Sequelize UNDEFINED detectado');
+    console.trace(); // 🔥 AQUÍ ESTÁ LA VERDAD
     throw new Error('Sequelize no inicializado correctamente');
   }
 
