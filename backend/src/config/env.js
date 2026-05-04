@@ -7,7 +7,7 @@ require('dotenv').config({
 function getEnv(key, defaultValue = undefined, minLength = 0) {
   const value = process.env[key];
 
-  if (!value) {
+  if (value === undefined || value === null || value === '') {
     if (defaultValue !== undefined) return defaultValue;
     throw new Error(`❌ Missing env: ${key}`);
   }
