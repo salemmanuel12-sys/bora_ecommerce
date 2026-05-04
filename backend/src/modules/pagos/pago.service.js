@@ -1,4 +1,4 @@
-const { Payment, Order, Notification, Usuario } = require('../../models');
+const { Payment, Order, Notification, Usuario } = require('../../models/loader');
 const HttpError = require('../../utils/httpError');
 const https = require('https');
 const Stripe = require('stripe');

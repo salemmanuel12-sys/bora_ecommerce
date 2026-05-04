@@ -6,7 +6,7 @@ const {
   Usuario,
   Order,
   OrderItem,
-} = require('../../models');
+} = require('../../models/loader');
 const HttpError = require('../../utils/httpError');
 
 function toPublicOpinion(opinion) {

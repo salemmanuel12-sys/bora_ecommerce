@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { Cart, CartItem, Producto, ProductoImagen } = require('../../models');
+const { Cart, CartItem, Producto, ProductoImagen } = require('../../models/loader');
 const HttpError = require('../../utils/httpError');
 
 const includeProducto = {

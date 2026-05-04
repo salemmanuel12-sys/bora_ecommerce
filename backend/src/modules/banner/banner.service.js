@@ -1,7 +1,7 @@
 const { Op } = require('sequelize');
 const path = require('path');
 const fs = require('fs');
-const { Banner } = require('../../models');
+const { Banner } = require('../../models/loader');
 const HttpError = require('../../utils/httpError');
 
 const BANNER_UPLOAD_DIR = path.join(__dirname, '..', '..', '..', 'uploadsBanner');

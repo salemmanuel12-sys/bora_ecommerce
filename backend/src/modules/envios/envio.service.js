@@ -1,4 +1,4 @@
-const { Shipment, Order, Notification } = require('../../models');
+const { Shipment, Order, Notification } = require('../../models/loader');
 const HttpError = require('../../utils/httpError');
 
 const SHIPMENT_STATUS_MAP = {

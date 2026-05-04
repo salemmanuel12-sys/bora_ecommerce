@@ -2,7 +2,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { Op } = require('sequelize');
 const HttpError = require('../../utils/httpError');
-const { Administrador, Rol } = require('../../models');
+const { Administrador, Rol } = require('../../models/loader');
 const emailService = require('../../services/emailService');
 
 const RESET_CODE_EXP_MS = 15 * 60 * 1000;

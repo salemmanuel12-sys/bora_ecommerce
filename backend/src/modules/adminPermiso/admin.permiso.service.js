@@ -6,7 +6,7 @@ const {
   Modulo,
   Submodulo,
   Accion,
-} = require('../../models');
+} = require('../../models/loader');
 
 const toAuditDate = () => new Date().toISOString().slice(0, 10).replace(/-/g, '');
 const toAuditTime = () => new Date().toTimeString().slice(0, 8).replace(/:/g, '');

@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { Rol, Administrador } = require('../../models');
+const { Rol, Administrador } = require('../../models/loader');
 const HttpError = require('../../utils/httpError');
 
 const toAuditDate = () => new Date().toISOString().slice(0, 10).replace(/-/g, '');

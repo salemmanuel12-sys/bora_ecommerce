@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { Tarjeta } = require('../../models');
+const { Tarjeta } = require('../../models/loader');
 const HttpError = require('../../utils/httpError');
 
 let cachedKey = null;

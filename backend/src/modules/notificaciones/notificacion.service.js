@@ -1,4 +1,4 @@
-const { Notification, Usuario } = require('../../models');
+const { Notification, Usuario } = require('../../models/loader');
 const HttpError = require('../../utils/httpError');
 const { Op } = require('sequelize');
 

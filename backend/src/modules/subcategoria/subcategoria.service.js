@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { Categoria, Subcategoria } = require('../../models');
+const { Categoria, Subcategoria } = require('../../models/loader');
 const HttpError = require('../../utils/httpError');
 
 function sanitizeText(value = '', maxLength = 255) {

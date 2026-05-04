@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { Op } = require('sequelize');
 const HttpError = require('../../utils/httpError');
 
-const { Administrador, AdminRefreshToken, AdminResetCode } = require('../../models/db');
+const { Administrador, AdminRefreshToken, AdminResetCode } = require('../../models/loader');
 const { sendResetCode } = require('../../utils/email');
 const emailService = require('../../services/emailService');
 const {

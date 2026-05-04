@@ -1,4 +1,4 @@
-const { Address } = require('../../models');
+const { Address } = require('../../models/loader');
 const HttpError = require('../../utils/httpError');
 
 function sanitize(value = '', max = 255) {
