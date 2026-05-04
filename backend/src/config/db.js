@@ -1,14 +1,15 @@
+const { getEnv } = require('./env');
 const { Sequelize } = require('sequelize');
 
-const DB_TIMEZONE = process.env.DB_TIMEZONE || '-06:00';
+const DB_TIMEZONE = getEnv('DB_TIMEZONE', 1) || '-06:00';
 
 const sequelize = new Sequelize(
-  process.env.DB_NAME,
-  process.env.DB_USER,
-  process.env.DB_PASSWORD,
+  getEnv('DB_NAME', 1),
+  getEnv('DB_USER', 1),
+  getEnv('DB_PASSWORD', 1),
   {
-    host: process.env.DB_HOST,
-    port: Number(process.env.DB_PORT) || 3306,
+    host: getEnv('DB_HOST', 1),
+    port: Number(getEnv('DB_PORT', 1)) || 3306,
     dialect: 'mysql',
     timezone: DB_TIMEZONE,
     logging: false,
