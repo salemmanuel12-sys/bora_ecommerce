@@ -1,4 +1,5 @@
-const { sequelize } = require('../config/db').sequelize;
+const db = require('../config/db');
+const sequelize = db.sequelize;
 const setupPermisosAssociations = require('./permiso.associations');
 
 const Administrador = require('./Administrador')(sequelize);
