@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { CreditCard, RefreshCw } from "lucide-react";
+import { CheckCircle2, Clock3, CreditCard, RefreshCw, XCircle } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import NavbarSesion from "../../components/usuarios/NavbarSesion";
 import FooterUsuario from "../../components/usuarios/FooterUsuario";
@@ -69,6 +69,61 @@ function getStripeDiagnosticSemaforo(diagnostics) {
   };
 }
 
+function getPaymentOutcome(payment, gatewayStatus) {
+  const normalized = String(payment?.status || "").trim().toLowerCase();
+
+  if (["approved", "aprobado", "paid", "pagado"].includes(normalized)) {
+    return {
+      type: "success",
+      title: "Pago confirmado",
+      message: "Tu pago fue procesado correctamente. Ya puedes continuar con el seguimiento del pedido.",
+    };
+  }
+
+  if (["rejected", "rechazado", "failed", "fallido", "canceled", "cancelado"].includes(normalized)) {
+    return {
+      type: "error",
+      title: "Pago no confirmado",
+      message: "El pago no se pudo completar. Puedes intentar de nuevo con otro metodo de pago.",
+    };
+  }
+
+  if (gatewayStatus === "cancel") {
+    return {
+      type: "warning",
+      title: "Pago cancelado",
+      message: "Cancelaste el pago antes de completarlo. Tu pedido sigue pendiente.",
+    };
+  }
+
+  return {
+    type: "warning",
+    title: "Pago en proceso",
+    message: "Tu pago esta siendo validado por la pasarela. Refresca en unos minutos para ver el estado final.",
+  };
+}
+
+function getCheckoutFeedbackStyle(type) {
+  if (type === "success") {
+    return {
+      wrapper: "border-emerald-200 bg-emerald-50 text-emerald-800",
+      icon: CheckCircle2,
+    };
+  }
+
+  if (type === "error") {
+    return {
+      wrapper: "border-rose-200 bg-rose-50 text-rose-800",
+      icon: XCircle,
+    };
+  }
+
+  return {
+    wrapper: "border-amber-200 bg-amber-50 text-amber-800",
+    icon: Clock3,
+  };
+}
+
 function UsuarioPagos() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -78,6 +133,8 @@ function UsuarioPagos() {
   const [paymentsByOrder, setPaymentsByOrder] = useState({});
   const [oxxoByOrder, setOxxoByOrder] = useState({});
   const [stripeDiagnosticsByOrder, setStripeDiagnosticsByOrder] = useState({});
+  const [checkoutFeedback, setCheckoutFeedback] = useState(null);
+  const [highlightedOrderId, setHighlightedOrderId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [workingOrderId, setWorkingOrderId] = useState(null);
   const callbackProcessedRef = useRef("");
@@ -87,6 +144,15 @@ function UsuarioPagos() {
     const orderPaymentStatus = String(order?.paymentStatus || "").toLowerCase();
     return ["approved", "aprobado", "paid", "pagado"].includes(paymentStatus)
       || ["approved", "aprobado", "paid", "pagado"].includes(orderPaymentStatus);
+  };
+
+  const focusOrderPaymentCard = (orderId) => {
+    const card = document.getElementById(`order-payment-${orderId}`);
+    if (card) {
+      card.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightedOrderId(orderId);
+      setTimeout(() => setHighlightedOrderId(null), 2000);
+    }
   };
 
   useEffect(() => {
@@ -342,6 +408,11 @@ function UsuarioPagos() {
 
         if (status === "cancel") {
           toast("Pago cancelado por el usuario.");
+          setCheckoutFeedback({
+            orderId,
+            gateway,
+            ...getPaymentOutcome(null, status),
+          });
           return;
         }
 
@@ -394,6 +465,14 @@ function UsuarioPagos() {
 
         const payment = paymentFromCallback || await pagoService.getByOrder(orderId);
         const orderIsPaid = isApprovedStatus(payment?.status);
+        const outcome = getPaymentOutcome(payment, status);
+
+        setCheckoutFeedback({
+          orderId,
+          gateway,
+          ...outcome,
+        });
+
         setPaymentsByOrder((prev) => ({ ...prev, [orderId]: payment }));
         setOrders((prev) => prev.map((order) => (
           order.id === orderId
@@ -405,6 +484,13 @@ function UsuarioPagos() {
             : order
         )));
       } catch (error) {
+        setCheckoutFeedback({
+          orderId,
+          gateway,
+          type: "error",
+          title: "Error al confirmar pago",
+          message: error?.response?.data?.message || error?.message || "No se pudo completar la confirmacion del pago.",
+        });
         toast.error(error?.response?.data?.message || error?.message || "No se pudo completar la confirmacion del pago.");
       } finally {
         setWorkingOrderId(null);
@@ -414,6 +500,19 @@ function UsuarioPagos() {
 
     runCallback();
   }, [authLoading, location.search, navigate, user]);
+
+  const feedbackOrder = checkoutFeedback?.orderId
+    ? orders.find((item) => item.id === checkoutFeedback.orderId)
+    : null;
+  const feedbackPayment = checkoutFeedback?.orderId
+    ? paymentsByOrder[checkoutFeedback.orderId]
+    : null;
+  const canRetryPayment = Boolean(
+    checkoutFeedback
+    && checkoutFeedback.type !== "success"
+    && feedbackOrder
+    && !isPaid(feedbackOrder, feedbackPayment)
+  );
 
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,#ffffff_0%,#f8fafe_28%,#fbf7ff_64%,#ffffff_100%)] text-[#231f20]">
@@ -442,6 +541,67 @@ function UsuarioPagos() {
           </div>
         </div>
 
+        {checkoutFeedback ? (
+          (() => {
+            const style = getCheckoutFeedbackStyle(checkoutFeedback.type);
+            const Icon = style.icon;
+
+            return (
+              <div className={`mb-4 rounded-2xl border p-4 ${style.wrapper}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <Icon size={18} className="mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold">{checkoutFeedback.title}</p>
+                      <p className="mt-1 text-sm">
+                        {checkoutFeedback.message}
+                        {checkoutFeedback.orderId ? ` Pedido #${checkoutFeedback.orderId}.` : ""}
+                      </p>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {checkoutFeedback.orderId ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => focusOrderPaymentCard(checkoutFeedback.orderId)}
+                              className="rounded-lg border border-current/20 px-2 py-1 text-xs font-semibold"
+                            >
+                              Ir al pedido
+                            </button>
+                            <Link
+                              to={`/usuarios/pedidos/${checkoutFeedback.orderId}`}
+                              className="rounded-lg border border-current/20 px-2 py-1 text-xs font-semibold"
+                            >
+                              Ver detalle del pedido
+                            </Link>
+                          </>
+                        ) : null}
+
+                        {canRetryPayment ? (
+                          <button
+                            type="button"
+                            onClick={() => handleStripeCheckout(checkoutFeedback.orderId)}
+                            className="rounded-lg border border-current/20 px-2 py-1 text-xs font-semibold"
+                          >
+                            Reintentar pago
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCheckoutFeedback(null)}
+                    className="rounded-lg border border-current/20 px-2 py-1 text-xs font-semibold"
+                  >
+                    Ocultar
+                  </button>
+                </div>
+              </div>
+            );
+          })()
+        ) : null}
+
         <article className="rounded-3xl border border-[#ebe6f7] bg-white p-6 shadow-[0_25px_60px_-45px_rgba(70,40,160,0.2)]">
           <div className="mb-4 flex items-center gap-2 text-[#6a40d8]">
             <CreditCard size={18} />
@@ -464,7 +624,7 @@ function UsuarioPagos() {
                 const isWorking = workingOrderId === order.id;
 
                 return (
-                  <div key={order.id} className="rounded-2xl border border-[#efe8ff] p-4">
+                  <div id={`order-payment-${order.id}`} key={order.id} className={`rounded-2xl border p-4 transition-all duration-300 ${highlightedOrderId === order.id ? 'border-[#9b24cf] ring-2 ring-[#9b24cf]/40' : 'border-[#efe8ff]'}`}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-sm font-semibold text-[#231f20]">Pedido #{order.id}</p>
                       <span className="rounded-full bg-[#f3ebff] px-3 py-1 text-xs font-semibold text-[#6a40d8]">

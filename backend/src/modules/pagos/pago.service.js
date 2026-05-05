@@ -566,6 +566,26 @@ async function processStripeWebhook(rawBody, signature) {
     };
   }
 
+  if (event.type === 'checkout.session.expired') {
+    const session = event.data.object;
+    const orderId = Number(session.metadata?.orderId || session.client_reference_id || 0);
+
+    if (!orderId) {
+      return { processed: false, reason: 'missing_order_id', eventType: event.type };
+    }
+
+    const payment = await markPaymentFailedByOrder(orderId, {
+      transactionId: String(session.payment_intent || session.id),
+    });
+
+    return {
+      processed: true,
+      eventType: event.type,
+      orderId,
+      payment,
+    };
+  }
+
   if (event.type === 'payment_intent.succeeded') {
     const intent = event.data.object;
     const orderId = Number(intent.metadata?.orderId || 0);
