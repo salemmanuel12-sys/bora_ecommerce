@@ -7,8 +7,8 @@ const PAYMENT_STATUS_MAP = {
   pending: 'Pendiente',
   approved: 'Aprobado',
   rejected: 'Rechazado',
-  pagado: 'Pagado',
-  failed: 'Fallido',
+  pagado: 'Aprobado',
+  failed: 'Rechazado',
 };
 
 const ORDER_STATUS_MAP = {
@@ -276,7 +276,7 @@ async function markPaymentFailedByOrder(orderId, { transactionId } = {}) {
   }
 
   await payment.update({
-    status: 'Fallido',
+    status: 'Rechazado',
     transactionId: transactionId || payment.transactionId,
   });
 
@@ -295,6 +295,7 @@ async function createStripeCheckoutSession(userId, orderId) {
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   const stripe = getStripeClient();
   const amount = Math.max(1, Math.round(Number(payment.amount || order.total || 0) * 100));
+  const customerEmail = await resolveStripeCustomerEmail(userId);
 
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
@@ -317,6 +318,7 @@ async function createStripeCheckoutSession(userId, orderId) {
       orderId: String(order.id),
       userId: String(userId),
     },
+    ...(customerEmail ? { customer_email: customerEmail } : {}),
     payment_intent_data: {
       metadata: {
         orderId: String(order.id),
@@ -534,6 +536,26 @@ async function processStripeWebhook(rawBody, signature) {
     const payment = await confirmPaymentByOrder(orderId, {
       transactionId: String(session.payment_intent || session.id),
       method: 'Tarjeta',
+    });
+
+    return {
+      processed: true,
+      eventType: event.type,
+      orderId,
+      payment,
+    };
+  }
+
+  if (event.type === 'checkout.session.async_payment_failed') {
+    const session = event.data.object;
+    const orderId = Number(session.metadata?.orderId || session.client_reference_id || 0);
+
+    if (!orderId) {
+      return { processed: false, reason: 'missing_order_id', eventType: event.type };
+    }
+
+    const payment = await markPaymentFailedByOrder(orderId, {
+      transactionId: String(session.payment_intent || session.id),
     });
 
     return {
@@ -902,6 +924,15 @@ async function resolveOxxoCustomerEmail(userId, providedEmail) {
   }
 
   throw new HttpError(400, 'Se requiere un email valido del cliente para generar ficha OXXO.');
+}
+
+async function resolveStripeCustomerEmail(userId) {
+  const usuario = await Usuario.findByPk(userId, { attributes: ['email'] }).catch(() => null);
+  if (isValidEmail(usuario?.email)) {
+    return String(usuario.email).trim();
+  }
+
+  return null;
 }
 
 async function confirmMercadoPagoPayment(userId, orderId, { paymentId }) {
