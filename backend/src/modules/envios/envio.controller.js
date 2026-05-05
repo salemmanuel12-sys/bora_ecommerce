@@ -6,7 +6,7 @@ async function getShipment(req, res, next) {
       req.usuario.id,
       Number(req.params.orderId)
     );
-    return res.status(200).json({ ok: true, data: shipment });
+    return res.status(200).json({ ok: true, data: shipment ?? null });
   } catch (error) {
     return next(error);
   }

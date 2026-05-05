@@ -43,7 +43,7 @@ async function getShipmentByOrder(userId, orderId) {
 
   const shipment = await Shipment.findOne({ where: { orderId } });
   if (!shipment) {
-    throw new HttpError(404, 'Envío no registrado para este pedido.');
+    return null;
   }
 
   return toPublic(shipment);

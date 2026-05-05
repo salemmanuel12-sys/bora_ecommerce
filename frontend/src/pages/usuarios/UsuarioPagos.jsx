@@ -280,22 +280,29 @@ function UsuarioPagos() {
         }
 
         if (gateway === "stripe") {
-          if (!stripeSessionId) {
-            toast("Pago recibido, validando confirmacion con Stripe...");
-          }
-
-          for (let attempt = 0; attempt < 4; attempt += 1) {
+          // Primero: polling corto por si el webhook ya actualizó la BD
+          for (let attempt = 0; attempt < 3; attempt += 1) {
             paymentFromCallback = await pagoService.getByOrder(orderId);
             if (isApprovedStatus(paymentFromCallback?.status)) {
               break;
             }
-            await sleep(1500);
+            await sleep(1200);
+          }
+
+          // Fallback: confirmar directamente via Stripe API si el polling no alcanzó
+          if (!isApprovedStatus(paymentFromCallback?.status) && stripeSessionId) {
+            try {
+              paymentFromCallback = await pagoService.confirmStripeCheckout(orderId, { sessionId: stripeSessionId });
+            } catch (_confirmError) {
+              // Si ya estaba aprobado (idempotente) o hubo error, tomamos el estado actual
+              paymentFromCallback = await pagoService.getByOrder(orderId);
+            }
           }
 
           if (isApprovedStatus(paymentFromCallback?.status)) {
             toast.success(`Pago con Stripe confirmado para pedido #${orderId}.`);
           } else {
-            toast("Stripe reporto el pago, pero la confirmacion final sigue en proceso.");
+            toast("El pago esta pendiente de confirmacion. Revisa en unos minutos.");
           }
         }
 

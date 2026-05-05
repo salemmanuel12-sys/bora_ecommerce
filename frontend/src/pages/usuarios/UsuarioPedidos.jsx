@@ -48,11 +48,19 @@ function UsuarioPedidos() {
 
   const statusColor = useMemo(
     () => ({
+      // Inglés (legacy)
       pending: "text-amber-700 bg-amber-100",
       paid: "text-emerald-700 bg-emerald-100",
       shipped: "text-sky-700 bg-sky-100",
       delivered: "text-green-700 bg-green-100",
       cancelled: "text-rose-700 bg-rose-100",
+      // Español (valores reales del backend)
+      Pendiente: "text-amber-700 bg-amber-100",
+      Pagado: "text-emerald-700 bg-emerald-100",
+      Aprobado: "text-emerald-700 bg-emerald-100",
+      Enviado: "text-sky-700 bg-sky-100",
+      Entregado: "text-green-700 bg-green-100",
+      Cancelado: "text-rose-700 bg-rose-100",
     }),
     []
   );
