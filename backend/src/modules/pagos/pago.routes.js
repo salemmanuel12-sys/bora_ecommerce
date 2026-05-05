@@ -7,6 +7,7 @@ const router = express.Router();
 
 // Usuario: consulta y confirmación de su propio pago
 router.get('/:orderId', usuarioAuthMiddleware, pagoController.getPayment);
+router.get('/:orderId/stripe/diagnostics', usuarioAuthMiddleware, pagoController.getStripeDiagnostics);
 router.post('/:orderId/confirm', usuarioAuthMiddleware, pagoController.confirmPayment);
 router.post('/:orderId/stripe/checkout-session', usuarioAuthMiddleware, pagoController.createStripeCheckout);
 router.post('/:orderId/stripe/confirm', usuarioAuthMiddleware, pagoController.confirmStripeCheckout);

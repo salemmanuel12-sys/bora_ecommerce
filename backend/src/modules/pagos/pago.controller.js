@@ -12,6 +12,26 @@ async function getPayment(req, res, next) {
   }
 }
 
+async function getStripeDiagnostics(req, res, next) {
+  try {
+    const diagnostics = await pagoService.getStripeDiagnostics(
+      req.usuario.id,
+      Number(req.params.orderId),
+      {
+        sessionId: req.query.sessionId,
+        paymentIntentId: req.query.paymentIntentId,
+      }
+    );
+
+    return res.status(200).json({
+      ok: true,
+      data: diagnostics,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function confirmPayment(req, res, next) {
   try {
     const payment = await pagoService.confirmManualPayment(
@@ -201,6 +221,7 @@ async function adminUpdatePayment(req, res, next) {
 
 module.exports = {
   getPayment,
+  getStripeDiagnostics,
   confirmPayment,
   createStripeCheckout,
   confirmStripeCheckout,

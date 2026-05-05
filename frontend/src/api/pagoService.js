@@ -26,6 +26,20 @@ export const pagoService = {
     return response.data?.data ?? response.data;
   },
 
+  async getStripeDiagnostics(orderId, { sessionId, paymentIntentId } = {}) {
+    const params = new URLSearchParams();
+    if (sessionId) params.set("sessionId", sessionId);
+    if (paymentIntentId) params.set("paymentIntentId", paymentIntentId);
+
+    const query = params.toString();
+    const url = query
+      ? `/pagos/${orderId}/stripe/diagnostics?${query}`
+      : `/pagos/${orderId}/stripe/diagnostics`;
+
+    const response = await api.get(url);
+    return response.data?.data ?? response.data;
+  },
+
   async createStripeOxxoVoucher(orderId, { customerEmail }) {
     const response = await api.post(`/pagos/${orderId}/stripe/oxxo-voucher`, { customerEmail });
     return response.data?.data ?? response.data;

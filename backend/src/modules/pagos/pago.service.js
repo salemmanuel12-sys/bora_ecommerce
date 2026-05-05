@@ -331,6 +331,176 @@ async function createStripeCheckoutSession(userId, orderId) {
   };
 }
 
+function toMoney(value) {
+  if (value === null || value === undefined) return null;
+  return Number(value) / 100;
+}
+
+function toSafeStripeSession(session) {
+  if (!session) return null;
+
+  return {
+    id: session.id,
+    status: session.status || null,
+    paymentStatus: session.payment_status || null,
+    amountTotal: toMoney(session.amount_total),
+    amountSubtotal: toMoney(session.amount_subtotal),
+    currency: session.currency || null,
+    paymentIntentId: typeof session.payment_intent === 'string'
+      ? session.payment_intent
+      : session.payment_intent?.id || null,
+    customerId: typeof session.customer === 'string'
+      ? session.customer
+      : session.customer?.id || null,
+    created: session.created || null,
+  };
+}
+
+function toSafeStripeCharge(charge) {
+  if (!charge) return null;
+
+  const balanceTransaction = typeof charge.balance_transaction === 'string'
+    ? null
+    : charge.balance_transaction;
+
+  return {
+    id: charge.id,
+    status: charge.status || null,
+    paid: Boolean(charge.paid),
+    captured: Boolean(charge.captured),
+    amount: toMoney(charge.amount),
+    amountCaptured: toMoney(charge.amount_captured),
+    amountRefunded: toMoney(charge.amount_refunded),
+    currency: charge.currency || null,
+    paymentMethod: charge.payment_method_details?.type || null,
+    balanceTransactionId: typeof charge.balance_transaction === 'string'
+      ? charge.balance_transaction
+      : charge.balance_transaction?.id || null,
+    balanceTransaction: balanceTransaction
+      ? {
+          id: balanceTransaction.id,
+          amount: toMoney(balanceTransaction.amount),
+          fee: toMoney(balanceTransaction.fee),
+          net: toMoney(balanceTransaction.net),
+          currency: balanceTransaction.currency || null,
+          status: balanceTransaction.status || null,
+          type: balanceTransaction.type || null,
+          availableOn: balanceTransaction.available_on || null,
+          created: balanceTransaction.created || null,
+        }
+      : null,
+    created: charge.created || null,
+  };
+}
+
+function toSafeStripePaymentIntent(intent) {
+  if (!intent) return null;
+
+  const latestCharge = typeof intent.latest_charge === 'string'
+    ? null
+    : intent.latest_charge;
+
+  return {
+    id: intent.id,
+    status: intent.status || null,
+    amount: toMoney(intent.amount),
+    amountReceived: toMoney(intent.amount_received),
+    currency: intent.currency || null,
+    customerId: typeof intent.customer === 'string'
+      ? intent.customer
+      : intent.customer?.id || null,
+    paymentMethodId: typeof intent.payment_method === 'string'
+      ? intent.payment_method
+      : intent.payment_method?.id || null,
+    latestChargeId: typeof intent.latest_charge === 'string'
+      ? intent.latest_charge
+      : intent.latest_charge?.id || null,
+    lastPaymentError: intent.last_payment_error?.message || null,
+    created: intent.created || null,
+    charge: toSafeStripeCharge(latestCharge),
+  };
+}
+
+async function getStripeDiagnostics(userId, orderId, { sessionId, paymentIntentId } = {}) {
+  const { payment } = await getOwnedOrderAndPayment(userId, orderId);
+  const stripe = getStripeClient();
+
+  let session = null;
+  if (sessionId) {
+    session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ['payment_intent.latest_charge.balance_transaction'],
+    });
+
+    const sessionOrderId = Number(session.metadata?.orderId || session.client_reference_id || 0);
+    if (sessionOrderId && sessionOrderId !== Number(orderId)) {
+      throw new HttpError(400, 'La sesion Stripe no corresponde al pedido solicitado.');
+    }
+  }
+
+  const txId = String(payment.transactionId || '');
+  let resolvedIntentId = paymentIntentId || null;
+
+  if (!resolvedIntentId && txId.startsWith('pi_')) {
+    resolvedIntentId = txId;
+  }
+
+  if (!resolvedIntentId && session?.payment_intent) {
+    resolvedIntentId = typeof session.payment_intent === 'string'
+      ? session.payment_intent
+      : session.payment_intent.id;
+  }
+
+  let paymentIntent = null;
+  if (resolvedIntentId) {
+    paymentIntent = await stripe.paymentIntents.retrieve(resolvedIntentId, {
+      expand: ['latest_charge.balance_transaction'],
+    });
+
+    const intentOrderId = Number(paymentIntent.metadata?.orderId || 0);
+    if (intentOrderId && intentOrderId !== Number(orderId)) {
+      throw new HttpError(400, 'El PaymentIntent de Stripe no corresponde al pedido solicitado.');
+    }
+  }
+
+  let charge = paymentIntent?.latest_charge;
+  if (!charge && txId.startsWith('ch_')) {
+    charge = await stripe.charges.retrieve(txId, {
+      expand: ['balance_transaction'],
+    });
+  }
+
+  const safeSession = toSafeStripeSession(session);
+  const safeIntent = toSafeStripePaymentIntent(paymentIntent);
+  const safeCharge = toSafeStripeCharge(typeof charge === 'string' ? null : charge);
+  const effectiveCharge = safeIntent?.charge || safeCharge;
+
+  const reflectsInStripeBalance = Boolean(
+    effectiveCharge?.paid
+    && effectiveCharge?.balanceTransactionId
+  );
+
+  return {
+    orderId: Number(orderId),
+    local: {
+      paymentId: payment.id,
+      status: payment.status,
+      method: payment.method,
+      amount: Number(payment.amount),
+      transactionId: payment.transactionId || null,
+      paidAt: payment.paidAt || null,
+    },
+    stripe: {
+      session: safeSession,
+      paymentIntent: safeIntent,
+      charge: effectiveCharge,
+    },
+    reflectsInStripeBalance,
+    hint: reflectsInStripeBalance
+      ? 'Stripe ya genero balance_transaction para este cobro.'
+      : 'Aun no hay balance_transaction confirmado; revisa que el PaymentIntent termine en succeeded.',
+  };
+}
+
 async function processStripeWebhook(rawBody, signature) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) {
@@ -852,6 +1022,7 @@ async function updatePaymentStatus(orderId, { status, transactionId }) {
 
 module.exports = {
   getPaymentByOrder,
+  getStripeDiagnostics,
   confirmPayment,
   confirmManualPayment,
   updatePaymentStatus,

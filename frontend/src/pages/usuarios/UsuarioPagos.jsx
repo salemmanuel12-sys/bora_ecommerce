@@ -34,6 +34,41 @@ function isApprovedStatus(value) {
   return ["approved", "aprobado", "paid", "pagado"].includes(normalized);
 }
 
+function getStripeDiagnosticSemaforo(diagnostics) {
+  const status = String(diagnostics?.stripe?.paymentIntent?.status || "").toLowerCase();
+  const hasBalanceTx = Boolean(diagnostics?.stripe?.charge?.balanceTransactionId);
+
+  if (hasBalanceTx || diagnostics?.reflectsInStripeBalance) {
+    return {
+      label: "Verde · Confirmado en Stripe",
+      dotClass: "bg-emerald-500",
+      chipClass: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    };
+  }
+
+  if (["requires_payment_method", "requires_action", "processing"].includes(status)) {
+    return {
+      label: "Amarillo · Pendiente de confirmacion",
+      dotClass: "bg-amber-500",
+      chipClass: "border-amber-200 bg-amber-50 text-amber-700",
+    };
+  }
+
+  if (status === "canceled" || status === "requires_capture" || status === "payment_failed") {
+    return {
+      label: "Rojo · Pago no consolidado",
+      dotClass: "bg-rose-500",
+      chipClass: "border-rose-200 bg-rose-50 text-rose-700",
+    };
+  }
+
+  return {
+    label: "Amarillo · Sin datos suficientes",
+    dotClass: "bg-amber-500",
+    chipClass: "border-amber-200 bg-amber-50 text-amber-700",
+  };
+}
+
 function UsuarioPagos() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -42,6 +77,7 @@ function UsuarioPagos() {
   const [orders, setOrders] = useState([]);
   const [paymentsByOrder, setPaymentsByOrder] = useState({});
   const [oxxoByOrder, setOxxoByOrder] = useState({});
+  const [stripeDiagnosticsByOrder, setStripeDiagnosticsByOrder] = useState({});
   const [loading, setLoading] = useState(true);
   const [workingOrderId, setWorkingOrderId] = useState(null);
   const callbackProcessedRef = useRef("");
@@ -249,6 +285,36 @@ function UsuarioPagos() {
     }
   };
 
+  const handleStripeDiagnostics = async (orderId) => {
+    try {
+      setWorkingOrderId(orderId);
+
+      const payment = paymentsByOrder[orderId] || null;
+      const paymentIntentId = String(payment?.transactionId || "").startsWith("pi_")
+        ? payment.transactionId
+        : undefined;
+
+      const diagnostics = await pagoService.getStripeDiagnostics(orderId, {
+        paymentIntentId,
+      });
+
+      setStripeDiagnosticsByOrder((prev) => ({
+        ...prev,
+        [orderId]: diagnostics,
+      }));
+
+      if (diagnostics?.reflectsInStripeBalance) {
+        toast.success("Stripe reporta balance transaction para este pedido.");
+      } else {
+        toast("Stripe aun no refleja balance transaction para este pedido.");
+      }
+    } catch (error) {
+      toast.error(error?.response?.data?.message || error?.message || "No se pudo obtener diagnostico Stripe.");
+    } finally {
+      setWorkingOrderId(null);
+    }
+  };
+
   useEffect(() => {
     if (authLoading || !user) {
       return;
@@ -393,6 +459,8 @@ function UsuarioPagos() {
               {orders.map((order) => {
                 const payment = paymentsByOrder[order.id];
                 const oxxoInfo = oxxoByOrder[order.id];
+                const stripeDiagnostics = stripeDiagnosticsByOrder[order.id];
+                const semaforo = stripeDiagnostics ? getStripeDiagnosticSemaforo(stripeDiagnostics) : null;
                 const isWorking = workingOrderId === order.id;
 
                 return (
@@ -420,6 +488,15 @@ function UsuarioPagos() {
                       >
                         <RefreshCw size={13} />
                         Refrescar
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isWorking}
+                        onClick={() => handleStripeDiagnostics(order.id)}
+                        className="rounded-xl border border-[#0f172a33] px-3 py-2 text-xs font-semibold text-[#0f172a]"
+                      >
+                        Diagnostico Stripe
                       </button>
 
                       {!isPaid(order, payment) ? (
@@ -488,6 +565,24 @@ function UsuarioPagos() {
                         >
                           Abrir ficha PDF
                         </a>
+                      </div>
+                    ) : null}
+
+                    {stripeDiagnostics ? (
+                      <div className="mt-3 rounded-xl border border-[#dbe7ff] bg-[#f6f9ff] p-3 text-xs text-[#1c2b4f]">
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-semibold">Diagnostico Stripe</p>
+                          <span className={`inline-flex items-center gap-2 rounded-full border px-2 py-1 text-[11px] font-semibold ${semaforo?.chipClass}`}>
+                            <span className={`h-2 w-2 rounded-full ${semaforo?.dotClass}`} />
+                            {semaforo?.label}
+                          </span>
+                        </div>
+                        <p>Refleja en saldo de prueba: <strong>{stripeDiagnostics.reflectsInStripeBalance ? "Si" : "No"}</strong></p>
+                        <p>PaymentIntent: <strong>{stripeDiagnostics?.stripe?.paymentIntent?.id || "N/A"}</strong></p>
+                        <p>Status intent: <strong>{stripeDiagnostics?.stripe?.paymentIntent?.status || "N/A"}</strong></p>
+                        <p>Charge: <strong>{stripeDiagnostics?.stripe?.charge?.id || "N/A"}</strong></p>
+                        <p>Balance transaction: <strong>{stripeDiagnostics?.stripe?.charge?.balanceTransactionId || "N/A"}</strong></p>
+                        <p>Hint: <strong>{stripeDiagnostics?.hint || "N/A"}</strong></p>
                       </div>
                     ) : null}
                   </div>
