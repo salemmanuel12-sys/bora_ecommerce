@@ -38,20 +38,68 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'https://www.isaakyuniell.com',
   'http://isaakyuniell.com',
   'https://isaakyuniell.com',
-];  
+];
+
+function normalizeOrigin(input = '') {
+  return String(input).trim().replace(/\/+$/, '').toLowerCase();
+}
+
+function expandOriginVariants(origin) {
+  const normalized = normalizeOrigin(origin);
+  if (!normalized) return [];
+
+  const variants = new Set([normalized]);
+
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.hostname.startsWith('www.')) {
+      variants.add(`${parsed.protocol}//${parsed.hostname.slice(4)}${parsed.port ? `:${parsed.port}` : ''}`);
+    } else {
+      variants.add(`${parsed.protocol}//www.${parsed.hostname}${parsed.port ? `:${parsed.port}` : ''}`);
+    }
+  } catch (_error) {
+    // Ignore invalid URL entries.
+  }
+
+  return [...variants];
+}
+
+function wildcardToRegExp(entry) {
+  const normalized = normalizeOrigin(entry);
+  if (!normalized.includes('*')) return null;
+
+  const escaped = normalized
+    .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*/g, '.*');
+
+  return new RegExp(`^${escaped}$`);
+}
 
 const envOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || '')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
 
-const allowedOrigins = [...new Set([...DEFAULT_ALLOWED_ORIGINS, ...envOrigins])];
+const staticOriginEntries = [...DEFAULT_ALLOWED_ORIGINS, ...envOrigins]
+  .flatMap((origin) => expandOriginVariants(origin));
+
+const wildcardOriginEntries = envOrigins
+  .map((origin) => wildcardToRegExp(origin))
+  .filter(Boolean);
+
+const allowedOrigins = new Set(staticOriginEntries);
 
 const corsOptions = {
   origin(origin, callback) {
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error('Origen no permitido por CORS'));
+
+    const normalizedIncoming = normalizeOrigin(origin);
+    if (allowedOrigins.has(normalizedIncoming)) return callback(null, true);
+
+    const wildcardMatch = wildcardOriginEntries.some((pattern) => pattern.test(normalizedIncoming));
+    if (wildcardMatch) return callback(null, true);
+
+    return callback(new Error(`Origen no permitido por CORS: ${origin}`));
   },
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
