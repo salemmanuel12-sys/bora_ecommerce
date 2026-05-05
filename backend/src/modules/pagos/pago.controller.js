@@ -61,6 +61,18 @@ async function confirmStripeCheckout(req, res, next) {
   }
 }
 
+async function stripeWebhook(req, res, next) {
+  try {
+    const result = await pagoService.processStripeWebhook(
+      req.body,
+      req.headers['stripe-signature']
+    );
+    return res.status(200).json({ ok: true, data: result });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function createPayPalOrder(req, res, next) {
   try {
     const data = await pagoService.createPayPalOrder(
@@ -192,6 +204,7 @@ module.exports = {
   confirmPayment,
   createStripeCheckout,
   confirmStripeCheckout,
+  stripeWebhook,
   createStripeOxxoVoucher,
   checkStripeOxxoStatus,
   createPayPalOrder,

@@ -23,6 +23,17 @@ function formatDate(value) {
   return new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function isApprovedStatus(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return ["approved", "aprobado", "paid", "pagado"].includes(normalized);
+}
+
 function UsuarioPagos() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -261,6 +272,7 @@ function UsuarioPagos() {
     const runCallback = async () => {
       try {
         setWorkingOrderId(orderId);
+        let paymentFromCallback = null;
 
         if (status === "cancel") {
           toast("Pago cancelado por el usuario.");
@@ -269,10 +281,22 @@ function UsuarioPagos() {
 
         if (gateway === "stripe") {
           if (!stripeSessionId) {
-            throw new Error("No se recibio session_id de Stripe.");
+            toast("Pago recibido, validando confirmacion con Stripe...");
           }
-          await pagoService.confirmStripeCheckout(orderId, { sessionId: stripeSessionId });
-          toast.success(`Pago con Stripe confirmado para pedido #${orderId}.`);
+
+          for (let attempt = 0; attempt < 4; attempt += 1) {
+            paymentFromCallback = await pagoService.getByOrder(orderId);
+            if (isApprovedStatus(paymentFromCallback?.status)) {
+              break;
+            }
+            await sleep(1500);
+          }
+
+          if (isApprovedStatus(paymentFromCallback?.status)) {
+            toast.success(`Pago con Stripe confirmado para pedido #${orderId}.`);
+          } else {
+            toast("Stripe reporto el pago, pero la confirmacion final sigue en proceso.");
+          }
         }
 
         if (gateway === "paypal") {
@@ -295,11 +319,16 @@ function UsuarioPagos() {
           }
         }
 
-        const payment = await pagoService.getByOrder(orderId);
+        const payment = paymentFromCallback || await pagoService.getByOrder(orderId);
+        const orderIsPaid = isApprovedStatus(payment?.status);
         setPaymentsByOrder((prev) => ({ ...prev, [orderId]: payment }));
         setOrders((prev) => prev.map((order) => (
           order.id === orderId
-            ? { ...order, paymentStatus: "Pagado", status: order.status === "Pendiente" ? "Pagado" : order.status }
+            ? {
+                ...order,
+                paymentStatus: orderIsPaid ? "Pagado" : order.paymentStatus,
+                status: orderIsPaid && order.status === "Pendiente" ? "Pagado" : order.status,
+              }
             : order
         )));
       } catch (error) {

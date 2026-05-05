@@ -144,6 +144,11 @@ function toPublic(payment) {
   };
 }
 
+function isApprovedPaymentStatus(value = '') {
+  const normalized = String(value || '').trim().toLowerCase();
+  return ['aprobado', 'approved', 'paid', 'pagado'].includes(normalized);
+}
+
 /**
  * Obtiene el pago de un pedido (usuario propietario).
  */
@@ -255,6 +260,31 @@ async function confirmPaymentByOrder(orderId, { transactionId, method } = {}) {
   return toPublic(payment);
 }
 
+async function markPaymentFailedByOrder(orderId, { transactionId } = {}) {
+  const order = await Order.findByPk(orderId);
+  if (!order) {
+    return null;
+  }
+
+  const payment = await Payment.findOne({ where: { orderId } });
+  if (!payment) {
+    return null;
+  }
+
+  if (isApprovedPaymentStatus(payment.status) || isApprovedPaymentStatus(order.paymentStatus)) {
+    return toPublic(payment);
+  }
+
+  await payment.update({
+    status: 'Fallido',
+    transactionId: transactionId || payment.transactionId,
+  });
+
+  await order.update({ paymentStatus: 'Fallido' });
+
+  return toPublic(payment);
+}
+
 async function createStripeCheckoutSession(userId, orderId) {
   const { order, payment } = await getOwnedOrderAndPayment(userId, orderId);
 
@@ -270,6 +300,7 @@ async function createStripeCheckoutSession(userId, orderId) {
     mode: 'payment',
     success_url: `${frontendUrl}/usuarios/pagos?gateway=stripe&status=success&orderId=${order.id}&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}/usuarios/pagos?gateway=stripe&status=cancel&orderId=${order.id}`,
+    client_reference_id: String(order.id),
     line_items: [
       {
         quantity: 1,
@@ -286,11 +317,108 @@ async function createStripeCheckoutSession(userId, orderId) {
       orderId: String(order.id),
       userId: String(userId),
     },
+    payment_intent_data: {
+      metadata: {
+        orderId: String(order.id),
+        userId: String(userId),
+      },
+    },
   });
 
   return {
     sessionId: session.id,
     checkoutUrl: session.url,
+  };
+}
+
+async function processStripeWebhook(rawBody, signature) {
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    throw new HttpError(500, 'Falta configurar STRIPE_WEBHOOK_SECRET en el servidor.');
+  }
+
+  if (!signature) {
+    throw new HttpError(400, 'Falta cabecera stripe-signature.');
+  }
+
+  const stripe = getStripeClient();
+
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+  } catch (_error) {
+    throw new HttpError(400, 'Firma de webhook Stripe invalida.');
+  }
+
+  if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
+    const session = event.data.object;
+    if (session.payment_status !== 'paid') {
+      return { processed: false, reason: 'session_not_paid', eventType: event.type };
+    }
+
+    const orderId = Number(session.metadata?.orderId || session.client_reference_id || 0);
+    if (!orderId) {
+      return { processed: false, reason: 'missing_order_id', eventType: event.type };
+    }
+
+    const payment = await confirmPaymentByOrder(orderId, {
+      transactionId: String(session.payment_intent || session.id),
+      method: 'Tarjeta',
+    });
+
+    return {
+      processed: true,
+      eventType: event.type,
+      orderId,
+      payment,
+    };
+  }
+
+  if (event.type === 'payment_intent.succeeded') {
+    const intent = event.data.object;
+    const orderId = Number(intent.metadata?.orderId || 0);
+
+    if (!orderId) {
+      return { processed: false, reason: 'missing_order_id', eventType: event.type };
+    }
+
+    const payment = await confirmPaymentByOrder(orderId, {
+      transactionId: String(intent.latest_charge || intent.id),
+      method: intent.metadata?.gateway === 'oxxo' ? 'Efectivo' : 'Tarjeta',
+    });
+
+    return {
+      processed: true,
+      eventType: event.type,
+      orderId,
+      payment,
+    };
+  }
+
+  if (event.type === 'payment_intent.payment_failed') {
+    const intent = event.data.object;
+    const orderId = Number(intent.metadata?.orderId || 0);
+
+    if (!orderId) {
+      return { processed: false, reason: 'missing_order_id', eventType: event.type };
+    }
+
+    const payment = await markPaymentFailedByOrder(orderId, {
+      transactionId: String(intent.latest_charge || intent.id),
+    });
+
+    return {
+      processed: true,
+      eventType: event.type,
+      orderId,
+      payment,
+    };
+  }
+
+  return {
+    processed: false,
+    reason: 'ignored_event',
+    eventType: event.type,
   };
 }
 
@@ -735,5 +863,6 @@ module.exports = {
   capturePayPalOrder,
   createMercadoPagoPreference,
   confirmMercadoPagoPayment,
+  processStripeWebhook,
   processMercadoPagoWebhook,
 };

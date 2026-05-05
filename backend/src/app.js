@@ -16,6 +16,7 @@ const adminPedidoRoutes = require('./modules/pedidos/pedido.admin.routes');
 const direccionRoutes = require('./modules/direcciones/direccion.routes');
 const tarjetaRoutes = require('./modules/tarjetas/tarjeta.routes');
 const pagoRoutes = require('./modules/pagos/pago.routes');
+const pagoController = require('./modules/pagos/pago.controller');
 const envioRoutes = require('./modules/envios/envio.routes');
 const notificacionRoutes = require('./modules/notificaciones/notificacion.routes');
 const adminNotificacionRoutes = require('./modules/notificaciones/notificacion.admin.routes');
@@ -61,6 +62,7 @@ app.disable('x-powered-by');
 app.use(helmet());
 app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
+app.post('/api/pagos/stripe/webhook', express.raw({ type: 'application/json' }), pagoController.stripeWebhook);
 app.use(express.json({ limit: JSON_BODY_LIMIT }));
 app.use(express.urlencoded({ extended: false, limit: JSON_BODY_LIMIT }));
 app.use('/uploads', (req, res, next) => {
