@@ -35,18 +35,13 @@ function FooterUsuario({ catalogPath = "/", catalogLabel = "Catalogo" }) {
             Disenos artesanales con una mezcla de brillo contemporaneo, color y elegancia para quienes buscan joyeria con caracter.
           </p>
           <div className="mt-6 flex items-center gap-3">
-            <SocialIcon label="Instagram" href="#">
-              <FaInstagram className="h-4 w-4" aria-hidden="true" />
-            </SocialIcon>
-            <SocialIcon label="Facebook" href="#">
+            <SocialIcon label="Facebook" href="https://www.facebook.com/share/18ZdyWcick/">
               <FaFacebookF className="h-4 w-4" aria-hidden="true" />
             </SocialIcon>
-            <SocialIcon label="Pinterest" href="#">
+            <SocialIcon label="YouTube" href="https://youtube.com/@isaakyuniell?si=26UMxbtR650nWwVC">
               <FaPinterestP className="h-4 w-4" aria-hidden="true" />
             </SocialIcon>
-            <SocialIcon label="TikTok" href="#">
-              <FaTiktok className="h-4 w-4" aria-hidden="true" />
-            </SocialIcon>
+            
           </div>
         </div>
 
@@ -74,9 +69,9 @@ function FooterUsuario({ catalogPath = "/", catalogLabel = "Catalogo" }) {
         <div>
           <p className="text-[11px] uppercase tracking-[0.28em] text-[#38ddd6]">Contacto</p>
           <div className="mt-5 space-y-4 text-sm text-white/75">
-            <p>Instagram, Facebook, Pinterest y TikTok como canales de inspiracion y contacto.</p>
+            <p>Facebook y YouTube como canales de inspiracion y contacto.</p>
             <p>Horario de atencion: Lunes a Viernes, 09:00 a 17:00.</p>
-            <p className="text-white">hola@borajoyeria.com</p>
+            <p className="text-white">borajoyeria146@gmail.com</p>
           </div>
         </div>
       </div>
