@@ -163,6 +163,35 @@ async function getPaymentByOrder(userId, orderId) {
     throw new HttpError(404, 'Pago no encontrado para este pedido.');
   }
 
+  if (payment.status !== 'Aprobado' && String(payment.transactionId || '').startsWith('cs_')) {
+    const stripe = getStripeClient();
+    const session = await stripe.checkout.sessions.retrieve(payment.transactionId, {
+      expand: ['payment_intent.latest_charge.balance_transaction'],
+    });
+
+    const metadataOrderId = resolveStripeSessionOrderId(session);
+    if (metadataOrderId && metadataOrderId !== Number(orderId)) {
+      throw new HttpError(400, 'La sesion Stripe no corresponde al pedido solicitado.');
+    }
+
+    const settlement = evaluateStripeSessionSettlement(session);
+
+    if (settlement.settled) {
+      const synced = await confirmPaymentByOrder(orderId, {
+        transactionId: settlement.transactionId,
+        method: 'Tarjeta',
+      });
+      return synced;
+    }
+
+    if (settlement.shouldReject) {
+      const failed = await markPaymentFailedByOrder(orderId, {
+        transactionId: String(session.payment_intent || session.id),
+      });
+      if (failed) return failed;
+    }
+  }
+
   return toPublic(payment);
 }
 
@@ -327,6 +356,12 @@ async function createStripeCheckoutSession(userId, orderId) {
     },
   });
 
+  await payment.update({
+    method: 'Tarjeta',
+    status: 'Pendiente',
+    transactionId: session.id,
+  });
+
   return {
     sessionId: session.id,
     checkoutUrl: session.url,
@@ -423,6 +458,70 @@ function toSafeStripePaymentIntent(intent) {
   };
 }
 
+function resolveStripeSessionOrderId(session) {
+  return Number(session?.metadata?.orderId || session?.client_reference_id || 0);
+}
+
+function evaluateStripeSessionSettlement(session) {
+  const paymentIntent = typeof session?.payment_intent === 'string'
+    ? null
+    : session?.payment_intent;
+  const latestCharge = typeof paymentIntent?.latest_charge === 'string'
+    ? null
+    : paymentIntent?.latest_charge;
+  const paymentStatus = String(session?.payment_status || '').toLowerCase();
+  const sessionStatus = String(session?.status || '').toLowerCase();
+  const intentStatus = String(paymentIntent?.status || '').toLowerCase();
+  const hasBalanceTransaction = Boolean(
+    latestCharge?.balance_transaction
+    && (typeof latestCharge.balance_transaction === 'string'
+      || latestCharge.balance_transaction?.id)
+  );
+
+  if (paymentStatus !== 'paid') {
+    return {
+      settled: false,
+      shouldReject: ['expired'].includes(sessionStatus),
+      message: 'Stripe aun no reporta el pago como pagado.',
+      reason: 'session_not_paid',
+    };
+  }
+
+  if (intentStatus && intentStatus !== 'succeeded') {
+    return {
+      settled: false,
+      shouldReject: ['canceled', 'requires_payment_method'].includes(intentStatus),
+      message: 'Stripe aun no confirma el PaymentIntent como succeeded.',
+      reason: 'intent_not_succeeded',
+    };
+  }
+
+  if (!latestCharge || !latestCharge.paid) {
+    return {
+      settled: false,
+      shouldReject: false,
+      message: 'Stripe aun no confirma un cargo pagado para esta sesion.',
+      reason: 'charge_not_paid',
+    };
+  }
+
+  if (!hasBalanceTransaction) {
+    return {
+      settled: false,
+      shouldReject: false,
+      message: 'El cobro aun no se refleja en Stripe (sin balance_transaction).',
+      reason: 'missing_balance_transaction',
+    };
+  }
+
+  return {
+    settled: true,
+    shouldReject: false,
+    reason: 'settled',
+    transactionId: String(latestCharge.id || paymentIntent?.id || session?.id),
+  };
+}
+
 async function getStripeDiagnostics(userId, orderId, { sessionId, paymentIntentId } = {}) {
   const { payment } = await getOwnedOrderAndPayment(userId, orderId);
   const stripe = getStripeClient();
@@ -505,11 +604,22 @@ async function getStripeDiagnostics(userId, orderId, { sessionId, paymentIntentI
 
 async function processStripeWebhook(rawBody, signature) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  console.info('[Stripe][Webhook] Iniciando procesamiento', {
+    hasWebhookSecret: Boolean(webhookSecret),
+    hasSignature: Boolean(signature),
+    rawBodyType: Buffer.isBuffer(rawBody) ? 'buffer' : typeof rawBody,
+    rawBodyBytes: Buffer.isBuffer(rawBody)
+      ? rawBody.length
+      : Buffer.byteLength(JSON.stringify(rawBody || {})),
+  });
+
   if (!webhookSecret) {
+    console.error('[Stripe][Webhook] Configuracion invalida: falta STRIPE_WEBHOOK_SECRET');
     throw new HttpError(500, 'Falta configurar STRIPE_WEBHOOK_SECRET en el servidor.');
   }
 
   if (!signature) {
+    console.error('[Stripe][Webhook] Solicitud rechazada: falta stripe-signature');
     throw new HttpError(400, 'Falta cabecera stripe-signature.');
   }
 
@@ -518,24 +628,78 @@ async function processStripeWebhook(rawBody, signature) {
   let event;
   try {
     event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
-  } catch (_error) {
+  } catch (error) {
+    console.error('[Stripe][Webhook] Firma invalida', {
+      message: error?.message || 'No se pudo validar la firma de Stripe.',
+    });
     throw new HttpError(400, 'Firma de webhook Stripe invalida.');
   }
 
-  if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
-    const session = event.data.object;
-    if (session.payment_status !== 'paid') {
-      return { processed: false, reason: 'session_not_paid', eventType: event.type };
-    }
+  console.info('[Stripe][Webhook] Evento verificado', {
+    eventId: event?.id || null,
+    eventType: event?.type || null,
+    livemode: Boolean(event?.livemode),
+    created: event?.created || null,
+  });
 
-    const orderId = Number(session.metadata?.orderId || session.client_reference_id || 0);
+  if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
+    const eventSession = event.data.object;
+    const orderId = resolveStripeSessionOrderId(eventSession);
     if (!orderId) {
+      console.warn('[Stripe][Webhook] Evento sin orderId en metadata/client_reference_id', {
+        eventType: event.type,
+      });
       return { processed: false, reason: 'missing_order_id', eventType: event.type };
     }
 
+    const session = await stripe.checkout.sessions.retrieve(eventSession.id, {
+      expand: ['payment_intent.latest_charge.balance_transaction'],
+    });
+    const settlement = evaluateStripeSessionSettlement(session);
+
+    if (!settlement.settled) {
+      console.warn('[Stripe][Webhook] Checkout no liquidado aun', {
+        eventType: event.type,
+        orderId,
+        reason: settlement.reason,
+      });
+      if (settlement.shouldReject) {
+        const payment = await markPaymentFailedByOrder(orderId, {
+          transactionId: String(session.payment_intent || session.id),
+        });
+        console.info('[Stripe][Webhook] Pago marcado como rechazado', {
+          eventType: event.type,
+          orderId,
+          paymentStatus: payment?.status || null,
+          reason: settlement.reason,
+        });
+        return {
+          processed: true,
+          eventType: event.type,
+          orderId,
+          payment,
+          reason: settlement.reason,
+        };
+      }
+
+      return {
+        processed: false,
+        eventType: event.type,
+        orderId,
+        reason: settlement.reason,
+      };
+    }
+
     const payment = await confirmPaymentByOrder(orderId, {
-      transactionId: String(session.payment_intent || session.id),
+      transactionId: settlement.transactionId,
       method: 'Tarjeta',
+    });
+
+    console.info('[Stripe][Webhook] Pago confirmado por checkout', {
+      eventType: event.type,
+      orderId,
+      paymentStatus: payment?.status || null,
+      transactionId: payment?.transactionId || null,
     });
 
     return {
@@ -551,11 +715,20 @@ async function processStripeWebhook(rawBody, signature) {
     const orderId = Number(session.metadata?.orderId || session.client_reference_id || 0);
 
     if (!orderId) {
+      console.warn('[Stripe][Webhook] async_payment_failed sin orderId', {
+        eventType: event.type,
+      });
       return { processed: false, reason: 'missing_order_id', eventType: event.type };
     }
 
     const payment = await markPaymentFailedByOrder(orderId, {
       transactionId: String(session.payment_intent || session.id),
+    });
+
+    console.info('[Stripe][Webhook] Pago marcado como fallido por async_payment_failed', {
+      eventType: event.type,
+      orderId,
+      paymentStatus: payment?.status || null,
     });
 
     return {
@@ -571,11 +744,20 @@ async function processStripeWebhook(rawBody, signature) {
     const orderId = Number(session.metadata?.orderId || session.client_reference_id || 0);
 
     if (!orderId) {
+      console.warn('[Stripe][Webhook] checkout.session.expired sin orderId', {
+        eventType: event.type,
+      });
       return { processed: false, reason: 'missing_order_id', eventType: event.type };
     }
 
     const payment = await markPaymentFailedByOrder(orderId, {
       transactionId: String(session.payment_intent || session.id),
+    });
+
+    console.info('[Stripe][Webhook] Pago marcado como expirado/rechazado', {
+      eventType: event.type,
+      orderId,
+      paymentStatus: payment?.status || null,
     });
 
     return {
@@ -591,12 +773,22 @@ async function processStripeWebhook(rawBody, signature) {
     const orderId = Number(intent.metadata?.orderId || 0);
 
     if (!orderId) {
+      console.warn('[Stripe][Webhook] payment_intent.succeeded sin orderId', {
+        eventType: event.type,
+      });
       return { processed: false, reason: 'missing_order_id', eventType: event.type };
     }
 
     const payment = await confirmPaymentByOrder(orderId, {
       transactionId: String(intent.latest_charge || intent.id),
       method: intent.metadata?.gateway === 'oxxo' ? 'Efectivo' : 'Tarjeta',
+    });
+
+    console.info('[Stripe][Webhook] Pago confirmado por payment_intent.succeeded', {
+      eventType: event.type,
+      orderId,
+      paymentStatus: payment?.status || null,
+      transactionId: payment?.transactionId || null,
     });
 
     return {
@@ -612,11 +804,20 @@ async function processStripeWebhook(rawBody, signature) {
     const orderId = Number(intent.metadata?.orderId || 0);
 
     if (!orderId) {
+      console.warn('[Stripe][Webhook] payment_intent.payment_failed sin orderId', {
+        eventType: event.type,
+      });
       return { processed: false, reason: 'missing_order_id', eventType: event.type };
     }
 
     const payment = await markPaymentFailedByOrder(orderId, {
       transactionId: String(intent.latest_charge || intent.id),
+    });
+
+    console.info('[Stripe][Webhook] Pago marcado como fallido por payment_intent.payment_failed', {
+      eventType: event.type,
+      orderId,
+      paymentStatus: payment?.status || null,
     });
 
     return {
@@ -627,6 +828,9 @@ async function processStripeWebhook(rawBody, signature) {
     };
   }
 
+  console.info('[Stripe][Webhook] Evento ignorado', {
+    eventType: event.type,
+  });
   return {
     processed: false,
     reason: 'ignored_event',
@@ -645,19 +849,28 @@ async function confirmStripeSession(userId, orderId, { sessionId }) {
   }
 
   const stripe = getStripeClient();
-  const session = await stripe.checkout.sessions.retrieve(sessionId);
+  const session = await stripe.checkout.sessions.retrieve(sessionId, {
+    expand: ['payment_intent.latest_charge.balance_transaction'],
+  });
 
-  if (!session || session.payment_status !== 'paid') {
-    throw new HttpError(400, 'El pago de Stripe aun no esta aprobado.');
-  }
-
-  const metadataOrderId = Number(session.metadata?.orderId || 0);
+  const metadataOrderId = resolveStripeSessionOrderId(session);
   if (metadataOrderId !== Number(orderId)) {
     throw new HttpError(400, 'La sesion Stripe no corresponde al pedido.');
   }
 
+  const settlement = evaluateStripeSessionSettlement(session);
+  if (!settlement.settled) {
+    if (settlement.shouldReject) {
+      await markPaymentFailedByOrder(orderId, {
+        transactionId: String(session.payment_intent || session.id),
+      });
+    }
+
+    throw new HttpError(400, settlement.message);
+  }
+
   return confirmPayment(userId, orderId, {
-    transactionId: String(session.payment_intent || session.id),
+    transactionId: settlement.transactionId,
     method: 'Tarjeta',
   });
 }

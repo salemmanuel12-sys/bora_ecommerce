@@ -111,6 +111,9 @@ function initModels(sequelize) {
   Producto.hasMany(ProductoOpinion, { foreignKey: 'productoId', as: 'opiniones' });
   ProductoOpinion.belongsTo(Producto, { foreignKey: 'productoId', as: 'producto' });
 
+  Usuario.hasMany(ProductoOpinion, { foreignKey: 'userId', as: 'opiniones' });
+  ProductoOpinion.belongsTo(Usuario, { foreignKey: 'userId', as: 'usuario' });
+
   // CARRITO
   Usuario.hasMany(Cart, { foreignKey: 'userId', as: 'carts' });
   Cart.belongsTo(Usuario, { foreignKey: 'userId', as: 'usuario' });

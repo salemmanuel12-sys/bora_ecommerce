@@ -138,6 +138,8 @@ function UsuarioPagos() {
   const [loading, setLoading] = useState(true);
   const [workingOrderId, setWorkingOrderId] = useState(null);
   const callbackProcessedRef = useRef("");
+  const focusedOrderRef = useRef(0);
+  const checkoutAutostartRef = useRef("");
 
   const isPaid = (order, payment) => {
     const paymentStatus = String(payment?.status || "").toLowerCase();
@@ -430,9 +432,16 @@ function UsuarioPagos() {
           if (!isApprovedStatus(paymentFromCallback?.status) && stripeSessionId) {
             try {
               paymentFromCallback = await pagoService.confirmStripeCheckout(orderId, { sessionId: stripeSessionId });
-            } catch (_confirmError) {
-              // Si ya estaba aprobado (idempotente) o hubo error, tomamos el estado actual
+            } catch (confirmError) {
               paymentFromCallback = await pagoService.getByOrder(orderId);
+
+              if (!isApprovedStatus(paymentFromCallback?.status)) {
+                throw new Error(
+                  confirmError?.response?.data?.message
+                  || confirmError?.message
+                  || "Stripe no confirmo el pago para este pedido."
+                );
+              }
             }
           }
 
@@ -500,6 +509,77 @@ function UsuarioPagos() {
 
     runCallback();
   }, [authLoading, location.search, navigate, user]);
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    const params = new URLSearchParams(location.search);
+    const requestedOrderId = Number(params.get("orderId") || 0);
+
+    if (!requestedOrderId || focusedOrderRef.current === requestedOrderId) {
+      return;
+    }
+
+    focusedOrderRef.current = requestedOrderId;
+    focusOrderPaymentCard(requestedOrderId);
+  }, [loading, location.search, orders.length]);
+
+  useEffect(() => {
+    if (loading || authLoading || !user) {
+      return;
+    }
+
+    const params = new URLSearchParams(location.search);
+    const fromCheckout = params.get("fromCheckout") === "1";
+    const gateway = params.get("gateway");
+    const status = params.get("status");
+    const orderId = Number(params.get("orderId") || 0);
+    const paymentMethod = String(params.get("paymentMethod") || "").trim().toLowerCase();
+
+    if (!fromCheckout || gateway || status || !orderId) {
+      return;
+    }
+
+    const dedupeKey = `${orderId}:${paymentMethod}`;
+    if (checkoutAutostartRef.current === dedupeKey) {
+      return;
+    }
+
+    const payment = paymentsByOrder[orderId] || null;
+    const order = orders.find((item) => item.id === orderId) || null;
+    if (!order || !payment) {
+      return;
+    }
+
+    if (isPaid(order, payment)) {
+      checkoutAutostartRef.current = dedupeKey;
+      setCheckoutFeedback({
+        orderId,
+        gateway: paymentMethod || "stripe",
+        type: "success",
+        title: "Pago confirmado",
+        message: "El pedido ya cuenta con pago aprobado.",
+      });
+      return;
+    }
+
+    checkoutAutostartRef.current = dedupeKey;
+
+    if (paymentMethod === "card") {
+      handleStripeCheckout(orderId);
+      return;
+    }
+
+    setCheckoutFeedback({
+      orderId,
+      gateway: paymentMethod || "manual",
+      type: "warning",
+      title: "Continua la validacion de pago",
+      message: "Selecciona una pasarela en esta pantalla para validar el pago del pedido.",
+    });
+  }, [authLoading, loading, location.search, orders, paymentsByOrder, user]);
 
   const feedbackOrder = checkoutFeedback?.orderId
     ? orders.find((item) => item.id === checkoutFeedback.orderId)

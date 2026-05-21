@@ -370,7 +370,7 @@ function Carrito() {
 
       const order = await pedidoService.checkout(payload);
       toast.success(`¡Pedido #${order.id} creado!`);
-      navigate(`/usuarios/pedidos/${order.id}`);
+      navigate(`/usuarios/pagos?orderId=${order.id}&fromCheckout=1&paymentMethod=${paymentMethod}`);
     } catch (error) {
       toast.error(error?.response?.data?.message || "No se pudo completar el pedido.");
     } finally {

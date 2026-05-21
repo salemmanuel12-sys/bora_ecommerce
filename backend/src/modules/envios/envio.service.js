@@ -60,6 +60,16 @@ async function upsertShipment(orderId, { carrier, trackingNumber, status }) {
 
   const normalizedStatus = status ? normalizeShipmentStatus(status) : '';
 
+  if (
+    ['Enviado', 'Entregado'].includes(normalizedStatus)
+    && String(order.paymentStatus || '').trim() !== 'Pagado'
+  ) {
+    throw new HttpError(
+      400,
+      'No se puede avanzar el envio porque el pago del pedido aun no esta aprobado.'
+    );
+  }
+
   let shipment = await Shipment.findOne({ where: { orderId } });
 
   if (!shipment) {

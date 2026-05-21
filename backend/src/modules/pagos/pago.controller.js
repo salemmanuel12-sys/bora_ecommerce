@@ -34,6 +34,10 @@ async function getStripeDiagnostics(req, res, next) {
 
 async function confirmPayment(req, res, next) {
   try {
+    console.log('[PagoController] Intento de confirmacion manual de pago', {
+      userId: req.usuario.id,
+      orderId: Number(req.params.orderId),
+    });
     const payment = await pagoService.confirmManualPayment(
       req.usuario.id,
       Number(req.params.orderId)
@@ -49,17 +53,42 @@ async function confirmPayment(req, res, next) {
 }
 
 async function createStripeCheckout(req, res, next) {
+  const orderId = Number(req.params.orderId);
+  const userId = req.usuario?.id;
+
+  console.info('[Stripe][Checkout] Intento de crear sesion', {
+    orderId,
+    userId,
+  });
+
   try {
     const data = await pagoService.createStripeCheckoutSession(
-      req.usuario.id,
-      Number(req.params.orderId)
+      userId,
+      orderId
     );
+
+    console.info('[Stripe][Checkout] Sesion creada', {
+      orderId,
+      userId,
+      sessionId: data?.sessionId || null,
+      hasCheckoutUrl: Boolean(data?.checkoutUrl),
+    });
+
     return res.status(200).json({
       ok: true,
       message: 'Sesion Stripe creada correctamente.',
       data,
     });
   } catch (error) {
+    console.error('[Stripe][Checkout] Error creando sesion', {
+      orderId,
+      userId,
+      status: error?.status || error?.statusCode || 500,
+      type: error?.type || error?.rawType || null,
+      code: error?.code || error?.raw?.code || null,
+      message: error?.message || 'Error desconocido creando sesion Stripe.',
+      requestId: error?.requestId || error?.raw?.requestId || null,
+    });
     return next(error);
   }
 }
@@ -82,13 +111,46 @@ async function confirmStripeCheckout(req, res, next) {
 }
 
 async function stripeWebhook(req, res, next) {
+  const requestId = `stripe_wh_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const signature = req.headers['stripe-signature'];
+  const contentType = req.headers['content-type'] || null;
+  const contentLength = req.headers['content-length'] || null;
+  const bodyIsBuffer = Buffer.isBuffer(req.body);
+
+  console.info('[Stripe][Webhook] Solicitud recibida', {
+    requestId,
+    method: req.method,
+    path: req.originalUrl,
+    hasSignature: Boolean(signature),
+    contentType,
+    contentLength,
+    bodyIsBuffer,
+  });
+
   try {
     const result = await pagoService.processStripeWebhook(
       req.body,
-      req.headers['stripe-signature']
+      signature
     );
+
+    console.info('[Stripe][Webhook] Solicitud procesada', {
+      requestId,
+      processed: Boolean(result?.processed),
+      eventType: result?.eventType || null,
+      orderId: result?.orderId || null,
+      reason: result?.reason || null,
+    });
+
     return res.status(200).json({ ok: true, data: result });
   } catch (error) {
+    console.error('[Stripe][Webhook] Error procesando solicitud', {
+      requestId,
+      status: error?.status || error?.statusCode || 500,
+      message: error?.message || 'Error desconocido en webhook Stripe.',
+      type: error?.type || error?.rawType || null,
+      code: error?.code || error?.raw?.code || null,
+      requestIdStripe: error?.requestId || error?.raw?.requestId || null,
+    });
     return next(error);
   }
 }
