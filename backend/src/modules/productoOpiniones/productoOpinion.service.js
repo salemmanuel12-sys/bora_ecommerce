@@ -9,6 +9,18 @@ const {
 } = require('../../models/loader');
 const HttpError = require('../../utils/httpError');
 
+function ensureOpinionUsuarioAssociation() {
+  if (!ProductoOpinion.associations?.usuario) {
+    ProductoOpinion.belongsTo(Usuario, { foreignKey: 'userId', as: 'usuario' });
+  }
+
+  if (!Usuario.associations?.opiniones) {
+    Usuario.hasMany(ProductoOpinion, { foreignKey: 'userId', as: 'opiniones' });
+  }
+}
+
+ensureOpinionUsuarioAssociation();
+
 function toPublicOpinion(opinion) {
   const item = opinion?.get ? opinion.get({ plain: true }) : opinion;
 
