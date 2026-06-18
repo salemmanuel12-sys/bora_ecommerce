@@ -323,14 +323,51 @@ async function createStripeCheckoutSession(userId, orderId) {
 
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   const stripe = getStripeClient();
-  const amount = Math.max(1, Math.round(Number(payment.amount || order.total || 0) * 100));
+
+  const amount = Math.max(
+    1,
+    Math.round(Number(payment.amount || order.total || 0) * 100)
+  );
+
   const customerEmail = await resolveStripeCustomerEmail(userId);
+
+  const usuario = await Usuario.findByPk(userId);
+
+  let stripeCustomerId = usuario?.stripeCustomerId;
+
+  // Crear cliente Stripe una sola vez
+  if (!stripeCustomerId) {
+    const customer = await stripe.customers.create({
+      email: customerEmail,
+      name: usuario.nombre,
+      metadata: {
+        userId: String(userId),
+      },
+    });
+
+    stripeCustomerId = customer.id;
+
+    await usuario.update({
+      stripeCustomerId,
+    });
+  }
 
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
-    success_url: `${frontendUrl}/usuarios/pagos?gateway=stripe&status=success&orderId=${order.id}&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${frontendUrl}/usuarios/pagos?gateway=stripe&status=cancel&orderId=${order.id}`,
+
+    success_url:
+      `${frontendUrl}/usuarios/pagos?gateway=stripe` +
+      `&status=success&orderId=${order.id}` +
+      `&session_id={CHECKOUT_SESSION_ID}`,
+
+    cancel_url:
+      `${frontendUrl}/usuarios/pagos?gateway=stripe` +
+      `&status=cancel&orderId=${order.id}`,
+
     client_reference_id: String(order.id),
+
+    customer: stripeCustomerId,
+
     line_items: [
       {
         quantity: 1,
@@ -343,12 +380,15 @@ async function createStripeCheckoutSession(userId, orderId) {
         },
       },
     ],
+
     metadata: {
       orderId: String(order.id),
       userId: String(userId),
     },
-    ...(customerEmail ? { customer_email: customerEmail } : {}),
+
     payment_intent_data: {
+      setup_future_usage: 'off_session',
+
       metadata: {
         orderId: String(order.id),
         userId: String(userId),
@@ -776,12 +816,49 @@ async function processStripeWebhook(rawBody, signature) {
       console.warn('[Stripe][Webhook] payment_intent.succeeded sin orderId', {
         eventType: event.type,
       });
-      return { processed: false, reason: 'missing_order_id', eventType: event.type };
+
+      return {
+        processed: false,
+        reason: 'missing_order_id',
+        eventType: event.type,
+      };
+    }
+
+    // Guardar customer y payment method para reutilizar la tarjeta
+    const order = await Order.findByPk(orderId);
+
+    if (order) {
+      const usuario = await Usuario.findByPk(order.userId);
+
+      if (usuario) {
+
+        const updates = {};
+
+        if (intent.customer) {
+          updates.stripeCustomerId = intent.customer;
+        }
+
+        if (intent.payment_method) {
+          updates.stripePaymentMethodId = intent.payment_method;
+        }
+
+        if (Object.keys(updates).length > 0) {
+          await usuario.update(updates);
+
+          console.info('[Stripe] Metodo de pago guardado', {
+            userId: usuario.id,
+            customerId: intent.customer || null,
+            paymentMethodId: intent.payment_method || null,
+          });
+        }
+      }
     }
 
     const payment = await confirmPaymentByOrder(orderId, {
       transactionId: String(intent.latest_charge || intent.id),
-      method: intent.metadata?.gateway === 'oxxo' ? 'Efectivo' : 'Tarjeta',
+      method: intent.metadata?.gateway === 'oxxo'
+        ? 'Efectivo'
+        : 'Tarjeta',
     });
 
     console.info('[Stripe][Webhook] Pago confirmado por payment_intent.succeeded', {

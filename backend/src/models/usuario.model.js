@@ -43,6 +43,17 @@ module.exports = (sequelize) => {
         allowNull: false,
         defaultValue: DataTypes.NOW,
       },
+      stripeCustomerId: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+        field: 'stripe_customer_id'
+      },
+
+      stripePaymentMethodId: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+        field: 'stripe_payment_method_id'
+      },
     },
     {
       tableName: 'usuarios',
