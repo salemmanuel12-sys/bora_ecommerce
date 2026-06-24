@@ -193,9 +193,7 @@ function UsuarioLogin() {
             </button>
           </div>
 
-          <p className="text-center text-xs text-slate-500">
-            Para login social, configura Firebase en variables `VITE_FIREBASE_*`.
-          </p>
+          
 
           <div className="text-center text-sm">
             <Link to="/usuarios/forgot-password" className="text-emerald-700 hover:underline">
