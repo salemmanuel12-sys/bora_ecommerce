@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Gem, Mail, Clock, Send } from "lucide-react";
-import { FaFacebookF, FaInstagram, FaPinterestP, FaTiktok } from "react-icons/fa6";
+import { FaFacebookF, FaYoutube } from "react-icons/fa6";
 import NavbarPublic from "../../components/usuarios/NavbarPublic";
 import FooterUsuario from "../../components/usuarios/FooterUsuario";
 import { getGuestCartCount } from "../../lib/guestCart";
