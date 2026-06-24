@@ -66,7 +66,7 @@ function Contacto() {
                 bg: "bg-[#faf7ff]",
                 border: "border-[#e8e3f5]",
                 titulo: "Correo electrónico",
-                contenido: "hola@borajoyeria.com",
+                contenido: "borajoyeria146@gmail.com",
                 sub: "Respondemos en menos de 24 horas.",
               },
               {
@@ -117,10 +117,10 @@ function Contacto() {
               <p className="mt-2 text-sm text-[#5b5866]">Encuentra nuestras piezas, novedades y estilo de vida en redes sociales.</p>
               <div className="mt-5 flex items-center gap-3">
                 {[
-                  { label: "Instagram", href: "#", icon: <FaInstagram className="h-5 w-5" />, bg: "bg-gradient-to-br from-[#9b24cf] to-[#6a40d8]" },
-                  { label: "Facebook", href: "#", icon: <FaFacebookF className="h-5 w-5" />, bg: "bg-[#6a40d8]" },
-                  { label: "Pinterest", href: "#", icon: <FaPinterestP className="h-5 w-5" />, bg: "bg-[#9b24cf]" },
-                  { label: "TikTok", href: "#", icon: <FaTiktok className="h-5 w-5" />, bg: "bg-[#231f20]" },
+                  
+                  { label: "Facebook", href: "https://www.facebook.com/share/18ZdyWcick/", icon: <FaFacebookF className="h-5 w-5" />, bg: "bg-[#6a40d8]" },
+                  { label: "YouTube", href: "https://youtube.com/@isaakyuniell?si=26UMxbtR650nWwVC", icon: <FaYoutube className="h-5 w-5" />, bg: "bg-[#9b24cf]" },
+                  ,
                 ].map(({ label, href, icon, bg }) => (
                   <a
                     key={label}
