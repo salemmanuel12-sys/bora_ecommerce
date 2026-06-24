@@ -39,7 +39,7 @@ import UsuarioPedidos from "./pages/usuarios/UsuarioPedidos";
 import UsuarioDirecciones from "./pages/usuarios/UsuarioDirecciones";
 import UsuarioPagos from "./pages/usuarios/UsuarioPagos";
 import ProductoDetalle from "./pages/usuarios/ProductoDetalle";
-import Privacidad from "./pages/public/Privacidad";
+import Privacidad from "./pages/usuarios/Privacidad";
 
 function App() {
   return (
