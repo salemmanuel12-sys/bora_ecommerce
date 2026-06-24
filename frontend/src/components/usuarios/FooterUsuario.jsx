@@ -20,7 +20,7 @@ function FooterUsuario({ catalogPath = "/", catalogLabel = "Catálogo" }) {
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[1.2fr_0.8fr_0.9fr] lg:px-8">
         <div>
           <div className="flex items-center gap-4">
-            <img src={boraLogo} alt="Isaak Yuniell" className="h-30 w-30 rounded-full bg-white object-contain p-1" />
+            <img src={boraLogo} alt="Isaak Yuniell" className="h-16 w-16 rounded-full bg-white object-contain p-1" />
             <div>
               <p className="text-[11px] uppercase tracking-[0.28em] text-[#38ddd6]">Isaak Yuniell</p>
               <h2
