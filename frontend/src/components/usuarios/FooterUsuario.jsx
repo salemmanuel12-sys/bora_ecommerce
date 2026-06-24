@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { FaFacebookF, FaInstagram, FaPinterestP, FaTiktok } from "react-icons/fa6";
+import { FaFacebookF, FaYoutube, FaTiktok } from "react-icons/fa6";
 import boraLogo from "../../assets/logo-isaak-yuniell.png";
 
 function SocialIcon({ label, href, children }) {
@@ -39,9 +39,11 @@ function FooterUsuario({ catalogPath = "/", catalogLabel = "Catálogo" }) {
               <FaFacebookF className="h-4 w-4" aria-hidden="true" />
             </SocialIcon>
             <SocialIcon label="YouTube" href="https://youtube.com/@isaakyuniell?si=26UMxbtR650nWwVC">
-              <FaPinterestP className="h-4 w-4" aria-hidden="true" />
+              <FaYoutube className="h-4 w-4" aria-hidden="true" />
             </SocialIcon>
-            
+            <SocialIcon label="TikTok" href="https://www.tiktok.com/@isaakyuniell">
+              <FaTiktok className="h-4 w-4" aria-hidden="true" />
+            </SocialIcon>
           </div>
         </div>
 
@@ -61,6 +63,14 @@ function FooterUsuario({ catalogPath = "/", catalogLabel = "Catálogo" }) {
             <li>
               <Link to="/contacto" className="transition hover:text-[#38ddd6]">
                 Contacto
+              </Link>
+            </li>
+            <li>
+              <Link 
+                to="/privacidad" 
+                className="transition hover:text-[#38ddd6]"
+              >
+                Política de privacidad
               </Link>
             </li>
           </ul>

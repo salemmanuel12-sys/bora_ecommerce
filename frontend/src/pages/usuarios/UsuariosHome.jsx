@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
-import { Gem, Search, SlidersHorizontal, Heart, ShoppingBag } from "lucide-react";
+import { Gem, Search, SlidersHorizontal, Heart, ShoppingBag, Cookie } from "lucide-react";
 import { addGuestItemFromProducto, getGuestCartCount } from "../../lib/guestCart";
 import NavbarPublic from "../../components/usuarios/NavbarPublic";
 import BannerSlider from "../../components/usuarios/BannerSlider";
@@ -124,6 +124,7 @@ function UsuariosHome() {
   const [sortBy, setSortBy] = useState("featured");
   const [cartCount, setCartCount] = useState(0);
   const [addingProductId, setAddingProductId] = useState(null);
+  const [showCookieBanner, setShowCookieBanner] = useState(false);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -163,6 +164,15 @@ function UsuariosHome() {
 
   useEffect(() => {
     setCartCount(getGuestCartCount());
+  }, []);
+
+  useEffect(() => {
+    const cookieConsent = localStorage.getItem("bora_cookie_consent");
+
+    if (!cookieConsent) {
+      setShowCookieBanner(true);
+    }
+
   }, []);
 
   const handleAddToCart = (producto) => {
@@ -211,6 +221,25 @@ function UsuariosHome() {
   }, [productos, search, categoriaActiva, sortBy]);
 
   const headerCategorias = categorias.filter((categoria) => categoria !== "Todas").slice(0, 4);
+
+  const acceptCookies = () => {
+    localStorage.setItem(
+      "bora_cookie_consent",
+      "accepted"
+    );
+
+    setShowCookieBanner(false);
+  };
+
+
+  const rejectCookies = () => {
+    localStorage.setItem(
+      "bora_cookie_consent",
+      "rejected"
+    );
+
+    setShowCookieBanner(false);
+  };
 
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,#ffffff_0%,#f8fafe_28%,#fbf7ff_64%,#ffffff_100%)] text-[#231f20]">
@@ -335,7 +364,61 @@ function UsuariosHome() {
         )}
       </section>
 
-      <FooterUsuario catalogPath="/" catalogLabel="Catalogo" />
+      <FooterUsuario catalogPath="/" catalogLabel="Catálogo" />
+
+      {showCookieBanner && (
+        <div className="fixed bottom-5 left-1/2 z-50 w-[95%] max-w-4xl -translate-x-1/2 rounded-[1.8rem] border border-[#e8e3f5] bg-white p-6 shadow-[0_35px_80px_-40px_rgba(70,40,160,0.45)]">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+            <div className="flex items-start gap-4 flex-1">
+              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#fdf4ff] text-[#9b24cf]">
+                <Cookie size={22}/>
+              </div>
+              <div>
+                <h3
+                  className="text-xl text-[#231f20]"
+                  style={{
+                    fontFamily:
+                    '"Cormorant Garamond", "Times New Roman", serif'
+                  }}
+                >
+                  Uso de cookies
+                </h3>
+                <p className="mt-1 text-sm leading-6 text-[#5b5866]">
+
+                  Utilizamos cookies y tecnologías similares para mejorar
+                  tu experiencia, recordar preferencias y analizar el uso
+                  del sitio. Al continuar navegando aceptas nuestra política
+                  de cookies.
+
+                  {" "}
+
+                  <Link
+                    to="/privacidad"
+                    className="text-[#6a40d8] underline hover:text-[#9b24cf]"
+                  >
+                    Ver política de privacidad
+                  </Link>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={rejectCookies}
+                className="rounded-xl border border-[#ebe6f7] px-5 py-2.5 text-sm text-[#5b5866] transition hover:bg-[#faf7ff]"
+              >
+                Rechazar
+              </button>
+              <button
+                onClick={acceptCookies}
+                className="rounded-xl bg-gradient-to-r from-[#6a40d8] via-[#9b24cf] to-[#38ddd6] px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-95"
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
