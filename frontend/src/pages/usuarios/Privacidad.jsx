@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ShieldCheck, Lock, CreditCard, Mail, Cookie } from "lucide-react";
+import { ShieldCheck, Lock, CreditCard, Mail, Cookie, UserRoundCheck } from "lucide-react";
 import NavbarPublic from "../../components/usuarios/NavbarPublic";
 import FooterUsuario from "../../components/usuarios/FooterUsuario";
 import { getGuestCartCount } from "../../lib/guestCart";
@@ -42,6 +42,12 @@ function Privacidad() {
       text:
         "Si tienes preguntas sobre el manejo de tus datos personales puedes escribirnos a borajoyeria146@gmail.com."
     },
+    {
+        icon: <UserRoundCheck size={22} />,
+        title: "Eliminación de datos personales",
+        text:
+            "Si deseas eliminar tus datos personales, puedes enviarnos una solicitud al correo borajoyeria146@gmail.com. También puedes eliminar la autorización de acceso desde la configuración de Facebook en la sección Apps y sitios web."
+        },
   ];
 
 
@@ -84,8 +90,13 @@ function Privacidad() {
         <div className="rounded-[2rem] border border-[#e8e3f5] bg-white p-8 shadow-[0_35px_80px_-50px_rgba(70,40,160,0.35)] sm:p-10">
           <p className="text-sm leading-7 text-[#5b5866]">
             En Bora Joyería valoramos la confianza de nuestros clientes.
-            Esta política describe cómo recopilamos y utilizamos la información
-            proporcionada al navegar o realizar compras dentro de nuestro sitio web.
+            Esta política describe cómo recopilamos, utilizamos, protegemos y administramos
+            la información proporcionada al navegar, realizar compras o interactuar con
+            nuestros servicios digitales.
+
+            Los datos personales serán utilizados únicamente para brindar atención,
+            procesar pedidos, mejorar la experiencia dentro del sitio y mantener una
+            comunicación adecuada con nuestros clientes.
           </p>
           <div className="mt-8 space-y-5">
             {sections.map((item)=>(     
