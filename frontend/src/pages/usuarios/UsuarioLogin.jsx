@@ -182,7 +182,7 @@ function UsuarioLogin() {
               <FaGoogle className="text-[#DB4437]" />
               Google
             </button>
-            <button
+            {/* <button
               type="button"
               onClick={handleFacebookLogin}
               disabled={submitting}
@@ -190,7 +190,7 @@ function UsuarioLogin() {
             >
               <FaFacebookF className="text-[#1877F2]" />
               Facebook
-            </button>
+            </button>*/}
           </div>
 
           
