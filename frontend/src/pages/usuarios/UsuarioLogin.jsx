@@ -172,7 +172,7 @@ function UsuarioLogin() {
             <span className="bg-white px-2">o continúa con</span>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-1 sm:grid-cols-1">
             <button
               type="button"
               onClick={handleGoogleLogin}
