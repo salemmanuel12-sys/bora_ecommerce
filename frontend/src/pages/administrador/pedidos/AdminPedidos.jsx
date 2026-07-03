@@ -2,16 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { ClipboardList, PackageSearch } from "lucide-react";
 
 const modules = [
-  {
-    label: "Pedidos",
-    description: "Da seguimiento a las ordenes de compra de los usuarios.",
-    icon: ClipboardList,
-    path: "/admin/pedidos/listado",
-    color: "text-orange-600 dark:text-orange-400",
-    bg: "bg-orange-600/10",
-    hoverBg: "group-hover:bg-orange-600",
-    glow: "from-orange-500/10 to-amber-500/10",
-  },
+  
   {
     label: "Seguimiento",
     description: "Consulta pago, envio, direccion y estado de cada pedido.",

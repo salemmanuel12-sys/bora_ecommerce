@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Search, RefreshCw, CreditCard, Truck, Eye } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminPedidosService } from "../../../api/adminPedidosService";
@@ -22,45 +22,65 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
+function isPaidStatus(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return ["paid", "pagado", "approved", "aprobado"].includes(normalized);
+}
+
+function toShipmentFormStatus(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+
+  if (["shipped", "enviado"].includes(normalized)) {
+    return "shipped";
+  }
+
+  if (["delivered", "entregado"].includes(normalized)) {
+    return "delivered";
+  }
+
+  return "pending";
+}
+
 export default function AdminPedidosListado() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [pagination, setPagination] = useState({ total: 0, page: 1, pages: 1, limit: 20 });
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [selectedShipment, setSelectedShipment] = useState(null);
   const [trackingForm, setTrackingForm] = useState({ carrier: "", trackingNumber: "", status: "pending" });
   const [workingAction, setWorkingAction] = useState("");
 
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async ({ page = pagination.page, nextSearch = search, nextStatus = statusFilter } = {}) => {
     setLoading(true);
     try {
-      const result = await adminPedidosService.list({ page: 1, limit: 100, status: statusFilter, search });
+      const result = await adminPedidosService.list({
+        page,
+        limit: pagination.limit,
+        status: nextStatus,
+        search: nextSearch,
+      });
+
       setOrders(Array.isArray(result.data) ? result.data : []);
+      setPagination((prev) => ({
+        ...prev,
+        ...(result.pagination || {}),
+      }));
     } catch (error) {
       toast.error(error?.response?.data?.message || "No se pudieron cargar los pedidos.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [pagination.limit, pagination.page, search, statusFilter]);
 
   useEffect(() => {
-    fetchOrders();
-  }, [statusFilter]);
+    const timeout = setTimeout(() => {
+      fetchOrders();
+    }, 250);
 
-  const filteredOrders = useMemo(() => {
-    const normalized = search.trim().toLowerCase();
-    if (!normalized) {
-      return orders;
-    }
-
-    return orders.filter((order) => {
-      const userName = String(order.usuario?.nombre || "").toLowerCase();
-      const userEmail = String(order.usuario?.email || "").toLowerCase();
-      const id = String(order.id || "");
-      return userName.includes(normalized) || userEmail.includes(normalized) || id.includes(normalized);
-    });
-  }, [orders, search]);
+    return () => clearTimeout(timeout);
+  }, [fetchOrders]);
 
   const openDetail = async (orderId) => {
     try {
@@ -71,7 +91,7 @@ export default function AdminPedidosListado() {
       setTrackingForm({
         carrier: order.shipment?.carrier || "",
         trackingNumber: order.shipment?.trackingNumber || "",
-        status: order.shipment?.status || (order.status === "shipped" ? "shipped" : "pending"),
+        status: toShipmentFormStatus(order.shipment?.status || order.status),
       });
     } catch (error) {
       toast.error(error?.response?.data?.message || "No se pudo cargar el detalle del pedido.");
@@ -146,7 +166,10 @@ export default function AdminPedidosListado() {
           <input
             type="text"
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPagination((prev) => ({ ...prev, page: 1 }));
+            }}
             placeholder="Buscar por pedido, cliente o correo"
             className="w-full rounded-xl border border-gray-200 bg-white px-10 py-3 text-sm outline-none focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
           />
@@ -154,7 +177,10 @@ export default function AdminPedidosListado() {
 
         <select
           value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
+          onChange={(event) => {
+            setStatusFilter(event.target.value);
+            setPagination((prev) => ({ ...prev, page: 1 }));
+          }}
           className="rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm outline-none focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
         >
           <option value="">Todos los estados</option>
@@ -185,12 +211,12 @@ export default function AdminPedidosListado() {
                   <tr>
                     <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500">Cargando pedidos...</td>
                   </tr>
-                ) : filteredOrders.length === 0 ? (
+                ) : orders.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500">No hay pedidos para mostrar.</td>
                   </tr>
                 ) : (
-                  filteredOrders.map((order) => (
+                  orders.map((order) => (
                     <tr key={order.id} className="hover:bg-gray-50/70 dark:hover:bg-gray-900/40">
                       <td className="px-4 py-4 text-sm font-semibold text-gray-800 dark:text-white">#{order.id}<div className="mt-1 text-xs font-normal text-gray-400">{formatDate(order.createdAt)}</div></td>
                       <td className="px-4 py-4 text-sm text-gray-700 dark:text-gray-200"><div>{order.usuario?.nombre || "Cliente"}</div><div className="text-xs text-gray-400">{order.usuario?.email || "Sin correo"}</div></td>
@@ -211,7 +237,7 @@ export default function AdminPedidosListado() {
                           <button
                             type="button"
                             onClick={() => confirmPayment(order.id)}
-                            disabled={workingAction === `pay-${order.id}` || order.paymentStatus === 'paid'}
+                            disabled={workingAction === `pay-${order.id}` || isPaidStatus(order.paymentStatus)}
                             className="rounded-lg border border-gray-200 p-2 text-emerald-600 transition hover:bg-emerald-50 disabled:opacity-50 dark:border-gray-700 dark:hover:bg-gray-700"
                             title="Confirmar pago"
                           >
@@ -315,6 +341,33 @@ export default function AdminPedidosListado() {
               </div>
             </div>
           )}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 lg:col-span-2">
+          <p>
+            Mostrando {orders.length} de {pagination.total} pedidos
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPagination((prev) => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
+              disabled={pagination.page <= 1 || loading}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold disabled:opacity-40 dark:border-gray-700"
+            >
+              Anterior
+            </button>
+            <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+              Página {pagination.page} de {Math.max(1, pagination.pages)}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPagination((prev) => ({ ...prev, page: Math.min(prev.pages, prev.page + 1) }))}
+              disabled={pagination.page >= pagination.pages || loading}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold disabled:opacity-40 dark:border-gray-700"
+            >
+              Siguiente
+            </button>
+          </div>
         </div>
       </div>
     </div>

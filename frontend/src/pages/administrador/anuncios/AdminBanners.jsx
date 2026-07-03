@@ -100,7 +100,7 @@ export default function AdminBanners() {
 
   const validateForm = () => {
     const errors = {};
-    if (!form.title.trim()) errors.title = "El título es obligatorio";
+    /*if (!form.title.trim()) errors.title = "El título es obligatorio";
     else if (form.title.trim().length > 140) errors.title = "Máximo 140 caracteres";
 
     if (form.description && form.description.length > 280) errors.description = "Máximo 280 caracteres";
@@ -112,7 +112,7 @@ export default function AdminBanners() {
 
     if (form.orden !== "" && (!Number.isInteger(Number(form.orden)) || Number(form.orden) < 0)) {
       errors.orden = "Orden debe ser entero >= 0";
-    }
+    }*/
 
     if (modalMode === "create" && !imageFile) {
       errors.imageFile = "La imagen es obligatoria";
