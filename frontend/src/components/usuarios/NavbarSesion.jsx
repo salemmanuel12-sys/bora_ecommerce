@@ -113,9 +113,9 @@ function NavbarSesion({
       <nav className="sticky top-0 z-10 border-b border-[#ece7f7] bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
           <Link to="/usuarios/home-sesion" className="flex items-center gap-3">
-            <img src={boraLogo} alt="Bora Joyería" className="h-20 w-20 rounded-full object-contain" />
+            <img src={boraLogo} alt="Isaak Yuniell" className="h-20 w-20 rounded-full object-contain" />
             <div>
-              <p className="text-[11px] uppercase tracking-[0.24em] text-[#9b24cf]">Bora Artesanal</p>
+              <p className="text-[11px] uppercase tracking-[0.24em] text-[#9b24cf]">Isaak Yuniell</p>
               <h1
                 className="text-2xl leading-none"
                 style={{ fontFamily: '"Cormorant Garamond", "Times New Roman", serif' }}
