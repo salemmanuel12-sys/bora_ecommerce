@@ -432,31 +432,32 @@ async function adminListOrders({ page = 1, limit = 20, status = '', search = '' 
 
   if (normalizedSearch) {
     const parsedOrderId = Number.parseInt(normalizedSearch, 10);
+
     where[Op.or] = [
-      ...(Number.isInteger(parsedOrderId) && parsedOrderId > 0 ? [{ id: parsedOrderId }] : []),
-      sequelizeWhere(cast(col('order.id'), 'CHAR'), { [Op.like]: `%${normalizedSearch}%` }),
+      ...(Number.isInteger(parsedOrderId) ? [{ id: parsedOrderId }] : []),
+
+      sequelizeWhere(
+        cast(col('order.id'), 'CHAR'),
+        {
+          [Op.like]: `%${normalizedSearch}%`
+        }
+      ),
+
+      sequelizeWhere(
+        require('sequelize').fn('LOWER', col('usuario.nombre')),
+        {
+          [Op.like]: lowerSearch
+        }
+      ),
+
+      sequelizeWhere(
+        require('sequelize').fn('LOWER', col('usuario.email')),
+        {
+          [Op.like]: lowerSearch
+        }
+      )
     ];
   }
-
-  if (normalizedSearch) {
-
-    includeUsuario.where = {
-        [Op.or]: [
-            {
-                nombre: {
-                    [Op.like]: lowerSearch
-                }
-            },
-            {
-                email: {
-                    [Op.like]: lowerSearch
-                }
-            }
-        ]
-    };
-
-    includeUsuario.required = true;
-}
 
   const { count, rows } = await Order.findAndCountAll({
     where,
