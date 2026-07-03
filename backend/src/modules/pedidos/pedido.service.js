@@ -421,14 +421,23 @@ async function adminListOrders({ page = 1, limit = 20, status = '', search = '' 
     where.status = normalizeOrderStatus(normalizedStatus);
   }
 
+  const likeSearch = `%${normalizedSearch}%`;
   const usuarioWhere = normalizedSearch
     ? {
         [Op.or]: [
-          { nombre: { [Op.iLike]: `%${normalizedSearch}%` } },
-          { email: { [Op.iLike]: `%${normalizedSearch}%` } },
+          { nombre: { [Op.like]: likeSearch } },
+          { email: { [Op.like]: likeSearch } },
         ],
       }
     : undefined;
+
+  if (normalizedSearch) {
+    const parsedOrderId = Number.parseInt(normalizedSearch, 10);
+    where[Op.or] = [
+      ...(Number.isInteger(parsedOrderId) && parsedOrderId > 0 ? [{ id: parsedOrderId }] : []),
+      { id: { [Op.like]: likeSearch } },
+    ];
+  }
 
   const { count, rows } = await Order.findAndCountAll({
     where,

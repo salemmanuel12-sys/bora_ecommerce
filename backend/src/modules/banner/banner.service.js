@@ -125,18 +125,32 @@ async function getBannerById(bannerId) {
   return toPublicBanner(banner);
 }
 
+function normalizeOptionalText(value, maxLength) {
+  const text = typeof value === 'string' ? value.trim() : '';
+  return text ? text.slice(0, maxLength) : null;
+}
+
+function normalizeOptionalNumber(value, fallback = 0) {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 async function createBanner({ title, description, ctaText, ctaLink, orden = 0, status = true, file }) {
   if (!file?.filename) {
     throw new HttpError(400, 'La imagen del banner es obligatoria.');
   }
 
   const banner = await Banner.create({
-    title,
-    description,
+    title: normalizeOptionalText(title, 140) || 'Banner',
+    description: normalizeOptionalText(description, 280),
     imageUrl: file.filename,
-    ctaText,
-    ctaLink,
-    orden: Number(orden || 0),
+    ctaText: normalizeOptionalText(ctaText, 80),
+    ctaLink: normalizeOptionalText(ctaLink, 500),
+    orden: normalizeOptionalNumber(orden, 0),
     status: Boolean(status),
   });
 
@@ -159,15 +173,15 @@ async function updateBanner({ bannerId, title, description, ctaText, ctaLink, or
     throw new HttpError(404, 'Banner no encontrado.');
   }
 
-  const payload = {
-    title,
-    description,
-    ctaText,
-    ctaLink,
-  };
+  const payload = {};
 
-  if (orden !== undefined && orden !== null) {
-    payload.orden = Number(orden);
+  if (title !== undefined) payload.title = normalizeOptionalText(title, 140) || banner.title;
+  if (description !== undefined) payload.description = normalizeOptionalText(description, 280);
+  if (ctaText !== undefined) payload.ctaText = normalizeOptionalText(ctaText, 80);
+  if (ctaLink !== undefined) payload.ctaLink = normalizeOptionalText(ctaLink, 500);
+
+  if (orden !== undefined && orden !== null && orden !== '') {
+    payload.orden = normalizeOptionalNumber(orden, banner.orden);
   }
 
   if (typeof status === 'boolean') {

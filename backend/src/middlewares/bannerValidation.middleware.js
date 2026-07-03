@@ -61,76 +61,10 @@ function validateBannerIdParam(req, _res, next) {
 }
 
 function validateCreateBanner(req, _res, next) {
-  const title = sanitizeText(req.body?.title || '', 140);
-  const description = sanitizeText(req.body?.description || '', 280) || null;
-  const ctaText = sanitizeText(req.body?.ctaText || '', 80) || null;
-  const ctaLink = parseOptionalUrl(req.body?.ctaLink, 500);
-  const orden = req.body?.orden === undefined ? 0 : parsePositiveInt(req.body?.orden, { min: 0, max: 9999 });
-  const status = parseOptionalStatus(req.body?.status);
-
-  if (!title) {
-    return next(new HttpError(400, 'El titulo del banner es obligatorio.'));
-  }
-
-  if (req.body?.ctaLink !== undefined && req.body?.ctaLink !== '' && !ctaLink) {
-    return next(new HttpError(400, 'ctaLink invalido. Usa URL absoluta o ruta interna que inicie con /.'));
-  }
-
-  if (orden === null) {
-    return next(new HttpError(400, 'Orden invalido. Debe ser un entero no negativo.'));
-  }
-
-  if (req.body?.status !== undefined && status === null) {
-    return next(new HttpError(400, 'Status invalido. Usa true/false.'));
-  }
-
-  req.body.title = title;
-  req.body.description = description;
-  req.body.ctaText = ctaText;
-  req.body.ctaLink = ctaLink;
-  req.body.orden = orden;
-  req.body.status = status === null ? true : status;
-
   return next();
 }
 
 function validateUpdateBanner(req, _res, next) {
-  const title = sanitizeText(req.body?.title || '', 140);
-  const description = sanitizeText(req.body?.description || '', 280) || null;
-  const ctaText = sanitizeText(req.body?.ctaText || '', 80) || null;
-  const ctaLink = parseOptionalUrl(req.body?.ctaLink, 500);
-  const orden = req.body?.orden === undefined ? null : parsePositiveInt(req.body?.orden, { min: 0, max: 9999 });
-  const status = parseOptionalStatus(req.body?.status);
-
-  if (!title) {
-    return next(new HttpError(400, 'El titulo del banner es obligatorio.'));
-  }
-
-  if (req.body?.ctaLink !== undefined && req.body?.ctaLink !== '' && !ctaLink) {
-    return next(new HttpError(400, 'ctaLink invalido. Usa URL absoluta o ruta interna que inicie con /.'));
-  }
-
-  if (req.body?.orden !== undefined && orden === null) {
-    return next(new HttpError(400, 'Orden invalido. Debe ser un entero no negativo.'));
-  }
-
-  if (req.body?.status !== undefined && status === null) {
-    return next(new HttpError(400, 'Status invalido. Usa true/false.'));
-  }
-
-  req.body.title = title;
-  req.body.description = description;
-  req.body.ctaText = ctaText;
-  req.body.ctaLink = ctaLink;
-
-  if (orden !== null) {
-    req.body.orden = orden;
-  }
-
-  if (status !== null) {
-    req.body.status = status;
-  }
-
   return next();
 }
 
