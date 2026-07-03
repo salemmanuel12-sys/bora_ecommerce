@@ -421,17 +421,34 @@ async function adminListOrders({ page = 1, limit = 20, status = '', search = '' 
     where.status = normalizeOrderStatus(normalizedStatus);
   }
 
+  const includeUsuario = {
+    model: Usuario,
+    as: 'usuario',
+    attributes: ['id', 'nombre', 'email', 'status'],
+    required: false,
+  };
+
   const lowerSearch = `%${normalizedSearch.toLowerCase()}%`;
 
   if (normalizedSearch) {
-    const parsedOrderId = Number.parseInt(normalizedSearch, 10);
-    where[Op.or] = [
-      ...(Number.isInteger(parsedOrderId) && parsedOrderId > 0 ? [{ id: parsedOrderId }] : []),
-      sequelizeWhere(cast(col('order.id'), 'CHAR'), { [Op.like]: `%${normalizedSearch}%` }),
-      { '$usuario.nombre$': { [Op.like]: lowerSearch } },
-      { '$usuario.email$': { [Op.like]: lowerSearch } },
-    ];
-  }
+
+    includeUsuario.where = {
+        [Op.or]: [
+            {
+                nombre: {
+                    [Op.like]: lowerSearch
+                }
+            },
+            {
+                email: {
+                    [Op.like]: lowerSearch
+                }
+            }
+        ]
+    };
+
+    includeUsuario.required = true;
+}
 
   const { count, rows } = await Order.findAndCountAll({
     where,
@@ -446,6 +463,7 @@ async function adminListOrders({ page = 1, limit = 20, status = '', search = '' 
     limit: parsedLimit,
     offset,
     distinct: true,
+    subQuery: false,
   });
 
   return {
@@ -471,4 +489,11 @@ async function adminGetOrder(orderId) {
   return toAdminOrder(order);
 }
 
-module.exports = { checkout, listOrders, getOrder, cancelOrder, adminListOrders, adminGetOrder };
+module.exports = {
+  checkout,
+  listOrders,
+  getOrder,
+  cancelOrder,
+  adminListOrders,
+  adminGetOrder
+};
