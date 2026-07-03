@@ -421,22 +421,15 @@ async function adminListOrders({ page = 1, limit = 20, status = '', search = '' 
     where.status = normalizeOrderStatus(normalizedStatus);
   }
 
-  const likeSearch = `%${normalizedSearch}%`;
   const lowerSearch = `%${normalizedSearch.toLowerCase()}%`;
-  const usuarioWhere = normalizedSearch
-    ? {
-        [Op.or]: [
-          sequelizeWhere(fn('LOWER', col('usuario.nombre')), { [Op.like]: lowerSearch }),
-          sequelizeWhere(fn('LOWER', col('usuario.email')), { [Op.like]: lowerSearch }),
-        ],
-      }
-    : undefined;
 
   if (normalizedSearch) {
     const parsedOrderId = Number.parseInt(normalizedSearch, 10);
     where[Op.or] = [
       ...(Number.isInteger(parsedOrderId) && parsedOrderId > 0 ? [{ id: parsedOrderId }] : []),
-      sequelizeWhere(fn('LOWER', cast(col('Order.id'), 'CHAR')), { [Op.like]: lowerSearch }),
+      sequelizeWhere(cast(col('id'), 'CHAR'), { [Op.like]: `%${normalizedSearch}%` }),
+      sequelizeWhere(fn('LOWER', col('usuario.nombre')), { [Op.like]: lowerSearch }),
+      sequelizeWhere(fn('LOWER', col('usuario.email')), { [Op.like]: lowerSearch }),
     ];
   }
 
@@ -448,12 +441,7 @@ async function adminListOrders({ page = 1, limit = 20, status = '', search = '' 
       includeShippingAddress,
       includePayment,
       includeShipment,
-    ].map((include) => {
-      if (include.as === 'usuario' && usuarioWhere) {
-        return { ...include, where: usuarioWhere, required: true };
-      }
-      return include;
-    }),
+    ],
     order: [['createdAt', 'DESC']],
     limit: parsedLimit,
     offset,

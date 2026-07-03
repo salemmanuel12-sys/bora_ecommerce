@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { bannerService } from "../../../api/bannerService";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace("/api", "") || "http://127.0.0.1:4001";
+const MAX_BANNER_IMAGE_BYTES = 8 * 1024 * 1024;
 const inputCls =
   "w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500";
 
@@ -116,6 +117,10 @@ export default function AdminBanners() {
 
     if (modalMode === "create" && !imageFile) {
       errors.imageFile = "La imagen es obligatoria";
+    }
+
+    if (imageFile && imageFile.size > MAX_BANNER_IMAGE_BYTES) {
+      errors.imageFile = "La imagen no puede superar 8 MB";
     }
 
     setFormErrors(errors);
@@ -367,10 +372,27 @@ export default function AdminBanners() {
               </Field>
 
               <Field label="Imagen" error={formErrors.imageFile} className="md:col-span-2">
-                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setImageFile(e.target.files?.[0] || null)} className={inputCls} />
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+
+                    if (file && file.size > MAX_BANNER_IMAGE_BYTES) {
+                      setImageFile(null);
+                      setFormErrors((prev) => ({ ...prev, imageFile: "La imagen no puede superar 8 MB" }));
+                      return;
+                    }
+
+                    setImageFile(file);
+                    setFormErrors((prev) => ({ ...prev, imageFile: undefined }));
+                  }}
+                  className={inputCls}
+                />
                 {modalMode === "edit" && selectedBanner?.imageUrl ? (
                   <p className="mt-1 text-xs text-gray-500">Si no seleccionas imagen, se conserva la actual.</p>
                 ) : null}
+                <p className="mt-1 text-xs text-gray-500">Formatos permitidos: JPG, PNG o WebP. Tamano maximo: 8 MB.</p>
               </Field>
 
               <label className="md:col-span-2 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-700/50 dark:text-gray-200">

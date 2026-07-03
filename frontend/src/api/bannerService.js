@@ -23,16 +23,12 @@ export const bannerService = {
   },
 
   async adminCreate(formData) {
-    const response = await api.post("/admin/anuncios/banners", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    const response = await api.post("/admin/anuncios/banners", formData);
     return response.data?.data ?? response.data;
   },
 
   async adminUpdate(bannerId, formData) {
-    const response = await api.put(`/admin/anuncios/banners/${bannerId}`, formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    const response = await api.put(`/admin/anuncios/banners/${bannerId}`, formData);
     return response.data?.data ?? response.data;
   },
 

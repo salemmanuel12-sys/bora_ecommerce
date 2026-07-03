@@ -28,7 +28,7 @@ const bannerPublicRoutes = require('./modules/banner/banner.public.routes');
 
 const app = express();
 
-const JSON_BODY_LIMIT = '2mb';
+const JSON_BODY_LIMIT = '12mb';
 const DEFAULT_ALLOWED_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:5174',
@@ -182,6 +182,13 @@ app.use((req, res) => {
 });
 
 app.use((error, _req, res, _next) => {
+  if (error?.type === 'entity.too.large' || error?.status === 413) {
+    return res.status(413).json({
+      ok: false,
+      message: 'El cuerpo de la solicitud supera el limite permitido.',
+    });
+  }
+
   const statusCode = error.statusCode || 500;
   const message = error.message || 'Error interno del servidor.';
 
