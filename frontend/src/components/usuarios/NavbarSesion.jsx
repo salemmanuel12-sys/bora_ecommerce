@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bell, CircleUserRound, LogOut, Menu, Search, ShoppingCart, X } from "lucide-react";
-import boraLogo from "../../assets/logoBora1.png";
+import boraLogo from "../../assets/logoBueno.png";
 import { notificacionService } from "../../api/notificacionService";
 
 function isActive(active, value) {
