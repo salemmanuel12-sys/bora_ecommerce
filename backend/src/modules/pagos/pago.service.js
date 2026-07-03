@@ -149,6 +149,29 @@ function isApprovedPaymentStatus(value = '') {
   return ['aprobado', 'approved', 'paid', 'pagado'].includes(normalized);
 }
 
+async function ensurePaymentRecord(order) {
+  const existing = await Payment.findOne({ where: { orderId: order.id } });
+  if (existing) {
+    return existing;
+  }
+
+  try {
+    return await Payment.create({
+      orderId: order.id,
+      method: 'Tarjeta',
+      amount: Number(order.total || 0),
+      status: 'Pendiente',
+    });
+  } catch (_error) {
+    // If a concurrent request created it first, retrieve the latest row.
+    const recovered = await Payment.findOne({ where: { orderId: order.id } });
+    if (recovered) {
+      return recovered;
+    }
+    throw _error;
+  }
+}
+
 /**
  * Obtiene el pago de un pedido (usuario propietario).
  */
@@ -158,10 +181,7 @@ async function getPaymentByOrder(userId, orderId) {
     throw new HttpError(404, 'Pedido no encontrado.');
   }
 
-  const payment = await Payment.findOne({ where: { orderId } });
-  if (!payment) {
-    throw new HttpError(404, 'Pago no encontrado para este pedido.');
-  }
+  const payment = await ensurePaymentRecord(order);
 
   if (payment.status !== 'Aprobado' && String(payment.transactionId || '').startsWith('cs_')) {
     const stripe = getStripeClient();
@@ -201,10 +221,7 @@ async function getOwnedOrderAndPayment(userId, orderId) {
     throw new HttpError(404, 'Pedido no encontrado.');
   }
 
-  const payment = await Payment.findOne({ where: { orderId } });
-  if (!payment) {
-    throw new HttpError(404, 'Pago no registrado para este pedido.');
-  }
+  const payment = await ensurePaymentRecord(order);
 
   return { order, payment };
 }

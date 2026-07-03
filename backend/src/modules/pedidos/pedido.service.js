@@ -165,6 +165,7 @@ async function checkout(userId, { shippingAddressId, paymentMethod, cardId, card
   const cartRaw = cart.get({ plain: true });
 
   const normalizedPaymentMethod = normalizePaymentMethod(paymentMethod);
+  const paymentMethodForRecord = normalizedPaymentMethod || 'Tarjeta';
 
   if (!cartRaw.items || cartRaw.items.length === 0) {
     throw new HttpError(400, 'El carrito está vacío.');
@@ -243,19 +244,17 @@ async function checkout(userId, { shippingAddressId, paymentMethod, cardId, card
       });
     }
 
-    // Create payment record
-    if (normalizedPaymentMethod) {
-      await Payment.create(
-        {
-          orderId: order.id,
-          method: normalizedPaymentMethod,
-          cardId: normalizedPaymentMethod === 'Tarjeta' ? selectedCardId : null,
-          amount: Number(total.toFixed(2)),
-          status: 'Pendiente',
-        },
-        { transaction }
-      );
-    }
+    // Create payment record so gateways can attach checkout sessions immediately.
+    await Payment.create(
+      {
+        orderId: order.id,
+        method: paymentMethodForRecord,
+        cardId: paymentMethodForRecord === 'Tarjeta' ? selectedCardId : null,
+        amount: Number(total.toFixed(2)),
+        status: 'Pendiente',
+      },
+      { transaction }
+    );
 
     // Mark cart as converted
     await Cart.update({ status: 'Convertido' }, { where: { id: cart.id }, transaction });
