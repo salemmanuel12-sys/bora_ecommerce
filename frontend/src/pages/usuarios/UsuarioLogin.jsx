@@ -5,7 +5,7 @@ import { FaFacebookF, FaGoogle } from "react-icons/fa6";
 import { useAuth } from "../../context/AuthContext";
 import { loginWithFacebook, loginWithGoogle } from "../../lib/firebaseAuth";
 import { userAuthService } from "../../api/userAuthService";
-import boraLogo from "../../assets/logoBora1.png";
+import boraLogo from "../../assets/logoBueno.png";
 import NavbarPublic from "../../components/usuarios/NavbarPublic";
 import FooterUsuario from "../../components/usuarios/FooterUsuario";
 import { getGuestCartCount } from "../../lib/guestCart";

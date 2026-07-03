@@ -9,7 +9,7 @@ import {
     Megaphone,
 } from "lucide-react";
 
-import logo from "../assets/logoBora1.jpg";
+import logo from "../assets/logoBueno.png";
 import { NavLink, useLocation } from "react-router-dom";
 
 const ADMIN_MODULE_PATHS = ["/admin/gestion-administradores"];

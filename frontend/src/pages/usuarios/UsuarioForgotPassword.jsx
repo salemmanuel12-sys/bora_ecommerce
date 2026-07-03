@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
-import boraLogo from "../../assets/logoBora1.png";
+import boraLogo from "../../assets/logoBueno.png";
 import NavbarPublic from "../../components/usuarios/NavbarPublic";
 import FooterUsuario from "../../components/usuarios/FooterUsuario";
 import { getGuestCartCount } from "../../lib/guestCart";

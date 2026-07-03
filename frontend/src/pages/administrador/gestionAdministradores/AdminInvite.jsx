@@ -3,7 +3,7 @@ import axios from "../../../api/axios";
 import { useAuth } from "../../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import logo from "../../../assets/Icono.png";
+import logo from "../../../assets/logoBueno.png";
 
 export default function AdminInvite() {
   const [form, setForm] = useState({
