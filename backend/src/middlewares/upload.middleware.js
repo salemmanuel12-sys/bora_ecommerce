@@ -8,7 +8,7 @@ const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const MAX_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
 const MAX_FILES = 10;
-const MAX_BANNER_SIZE_BYTES = 3 * 1024 * 1024; // 3 MB
+const MAX_BANNER_SIZE_BYTES = 8 * 1024 * 1024; // 8 MB
 
 const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploadsImages', 'productos');
 const BANNER_UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploadsBanner');
@@ -118,7 +118,7 @@ function handleUploadBannerImagen(req, res, next) {
     }
 
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return next(new HttpError(400, 'La imagen del banner no puede superar 3 MB.'));
+      return next(new HttpError(400, 'La imagen del banner no puede superar 8 MB.'));
     }
 
     if (err.code === 'LIMIT_FILE_COUNT') {
