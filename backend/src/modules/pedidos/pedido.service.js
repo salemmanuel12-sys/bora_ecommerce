@@ -412,7 +412,7 @@ async function adminListOrders({ page = 1, limit = 20, status = '', search = '' 
   const parsedLimit = Math.min(100, Math.max(1, Number.parseInt(String(limit), 10) || 20));
   const offset = (parsedPage - 1) * parsedLimit;
 
-  const { Op, cast, col, fn, where: sequelizeWhere } = require('sequelize');
+  const { Op, cast, col, where: sequelizeWhere } = require('sequelize');
   const where = {};
   const normalizedStatus = String(status || '').trim();
   const normalizedSearch = String(search || '').trim();
@@ -428,8 +428,8 @@ async function adminListOrders({ page = 1, limit = 20, status = '', search = '' 
     where[Op.or] = [
       ...(Number.isInteger(parsedOrderId) && parsedOrderId > 0 ? [{ id: parsedOrderId }] : []),
       sequelizeWhere(cast(col('order.id'), 'CHAR'), { [Op.like]: `%${normalizedSearch}%` }),
-      sequelizeWhere(fn('LOWER', col('usuario.nombre')), { [Op.like]: lowerSearch }),
-      sequelizeWhere(fn('LOWER', col('usuario.email')), { [Op.like]: lowerSearch }),
+      { '$usuario.nombre$': { [Op.like]: lowerSearch } },
+      { '$usuario.email$': { [Op.like]: lowerSearch } },
     ];
   }
 
