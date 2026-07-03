@@ -431,6 +431,14 @@ async function adminListOrders({ page = 1, limit = 20, status = '', search = '' 
   const lowerSearch = `%${normalizedSearch.toLowerCase()}%`;
 
   if (normalizedSearch) {
+    const parsedOrderId = Number.parseInt(normalizedSearch, 10);
+    where[Op.or] = [
+      ...(Number.isInteger(parsedOrderId) && parsedOrderId > 0 ? [{ id: parsedOrderId }] : []),
+      sequelizeWhere(cast(col('order.id'), 'CHAR'), { [Op.like]: `%${normalizedSearch}%` }),
+    ];
+  }
+
+  if (normalizedSearch) {
 
     includeUsuario.where = {
         [Op.or]: [
