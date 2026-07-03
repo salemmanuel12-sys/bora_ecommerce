@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { FaFacebookF, FaYoutube, FaTiktok } from "react-icons/fa6";
-import boraLogo from "../../assets/logo-isaak-yuniell.png";
+import boraLogo from "../../assets/logoBueno.png";
 
 function SocialIcon({ label, href, children }) {
   return (

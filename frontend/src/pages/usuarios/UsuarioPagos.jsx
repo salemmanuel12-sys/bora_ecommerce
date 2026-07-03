@@ -124,6 +124,16 @@ function getCheckoutFeedbackStyle(type) {
   };
 }
 
+function getPendingCheckoutMessage(orderId) {
+  return {
+    orderId,
+    gateway: "stripe",
+    type: "warning",
+    title: "Pedido creado",
+    message: "Tu pedido ya fue registrado. Elige una opcion de Stripe para completar el pago.",
+  };
+}
+
 function UsuarioPagos() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -174,7 +184,7 @@ function UsuarioPagos() {
             try {
               const payment = await pagoService.getByOrder(order.id);
               map[order.id] = payment;
-            } catch (_error) {
+            } catch {
               map[order.id] = null;
             }
           })
@@ -189,15 +199,6 @@ function UsuarioPagos() {
 
     loadData();
   }, [authLoading, user]);
-
-  if (authLoading) {
-    return null;
-  }
-
-  if (!user) {
-    navigate("/user", { replace: true });
-    return null;
-  }
 
   const refreshPayment = async (orderId) => {
     try {
@@ -222,35 +223,6 @@ function UsuarioPagos() {
       window.location.assign(data.checkoutUrl);
     } catch (error) {
       toast.error(error?.response?.data?.message || error?.message || "No se pudo iniciar Stripe.");
-      setWorkingOrderId(null);
-    }
-  };
-
-  const handlePayPalCheckout = async (orderId) => {
-    try {
-      setWorkingOrderId(orderId);
-      const data = await pagoService.createPayPalOrder(orderId);
-      if (!data?.approveUrl) {
-        throw new Error("No se recibio URL de PayPal.");
-      }
-      window.location.assign(data.approveUrl);
-    } catch (error) {
-      toast.error(error?.response?.data?.message || error?.message || "No se pudo iniciar PayPal.");
-      setWorkingOrderId(null);
-    }
-  };
-
-  const handleMercadoPagoCheckout = async (orderId) => {
-    try {
-      setWorkingOrderId(orderId);
-      const data = await pagoService.createMercadoPagoPreference(orderId);
-      const redirectUrl = data?.sandboxCheckoutUrl || data?.checkoutUrl;
-      if (!redirectUrl) {
-        throw new Error("No se recibio URL de Mercado Pago.");
-      }
-      window.location.assign(redirectUrl);
-    } catch (error) {
-      toast.error(error?.response?.data?.message || error?.message || "No se pudo iniciar Mercado Pago.");
       setWorkingOrderId(null);
     }
   };
@@ -382,6 +354,12 @@ function UsuarioPagos() {
       setWorkingOrderId(null);
     }
   };
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/user", { replace: true });
+    }
+  }, [authLoading, navigate, user]);
 
   useEffect(() => {
     if (authLoading || !user) {
@@ -542,14 +520,14 @@ function UsuarioPagos() {
       return;
     }
 
-    const dedupeKey = `${orderId}:${paymentMethod}`;
+    const dedupeKey = `${orderId}:${paymentMethod || "pending"}`;
     if (checkoutAutostartRef.current === dedupeKey) {
       return;
     }
 
     const payment = paymentsByOrder[orderId] || null;
     const order = orders.find((item) => item.id === orderId) || null;
-    if (!order || !payment) {
+    if (!order) {
       return;
     }
 
@@ -572,14 +550,12 @@ function UsuarioPagos() {
       return;
     }
 
-    setCheckoutFeedback({
-      orderId,
-      gateway: paymentMethod || "manual",
-      type: "warning",
-      title: "Continua la validacion de pago",
-      message: "Selecciona una pasarela en esta pantalla para validar el pago del pedido.",
-    });
+    setCheckoutFeedback(getPendingCheckoutMessage(orderId));
   }, [authLoading, loading, location.search, orders, paymentsByOrder, user]);
+
+  if (authLoading || !user) {
+    return null;
+  }
 
   const feedbackOrder = checkoutFeedback?.orderId
     ? orders.find((item) => item.id === checkoutFeedback.orderId)
@@ -747,23 +723,7 @@ function UsuarioPagos() {
                             onClick={() => handleStripeCheckout(order.id)}
                             className="rounded-xl bg-[#0f172a] px-3 py-2 text-xs font-semibold text-white"
                           >
-                            Pagar con Stripe
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isWorking}
-                            onClick={() => handlePayPalCheckout(order.id)}
-                            className="rounded-xl bg-[#003087] px-3 py-2 text-xs font-semibold text-white"
-                          >
-                            Pagar con PayPal
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isWorking}
-                            onClick={() => handleMercadoPagoCheckout(order.id)}
-                            className="rounded-xl bg-[#009ee3] px-3 py-2 text-xs font-semibold text-white"
-                          >
-                            Pagar con Mercado Pago
+                            Pagar con tarjeta
                           </button>
                           <button
                             type="button"
@@ -771,7 +731,7 @@ function UsuarioPagos() {
                             onClick={() => handleCreateOxxoVoucher(order.id)}
                             className="rounded-xl bg-[#0b5f35] px-3 py-2 text-xs font-semibold text-white"
                           >
-                            Pagar en OXXO
+                            Pagar en OXXO con Stripe
                           </button>
                           <button
                             type="button"

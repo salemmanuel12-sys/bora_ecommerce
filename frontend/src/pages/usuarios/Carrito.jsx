@@ -8,7 +8,6 @@ import {
   Plus,
   Trash2,
   MapPin,
-  CreditCard,
   CheckCircle2,
   ArrowLeft,
 } from "lucide-react";
@@ -20,7 +19,6 @@ import NavbarSesion from "../../components/usuarios/NavbarSesion";
 import FooterUsuario from "../../components/usuarios/FooterUsuario";
 import { direccionService } from "../../api/direccionService";
 import { pedidoService } from "../../api/pedidoService";
-import { tarjetaService } from "../../api/tarjetaService";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:4001/api";
 const STATIC_BASE_URL = API_BASE_URL.replace("/api", "");
@@ -28,7 +26,6 @@ const STATIC_BASE_URL = API_BASE_URL.replace("/api", "");
 const STEPS = [
   { id: 1, label: "Carrito", icon: ShoppingCart },
   { id: 2, label: "Dirección", icon: MapPin },
-  { id: 3, label: "Pago", icon: CreditCard },
 ];
 
 const EMPTY_ADDRESS = {
@@ -41,35 +38,6 @@ const EMPTY_ADDRESS = {
   country: "Mexico",
   references: "",
 };
-
-const EMPTY_CARD = {
-  holderName: "",
-  cardNumber: "",
-  expMonth: "",
-  expYear: "",
-  cvv: "",
-};
-
-const PAYMENT_OPTIONS = [
-  {
-    value: "card",
-    label: "Tarjeta de crédito / débito",
-    description: "Visa, Mastercard, American Express",
-    icon: "💳",
-  },
-  {
-    value: "transfer",
-    label: "Transferencia bancaria",
-    description: "SPEI / depósito a cuenta",
-    icon: "🏦",
-  },
-  {
-    value: "cash",
-    label: "Pago en efectivo",
-    description: "OXXO, 7-Eleven u otro establecimiento",
-    icon: "💵",
-  },
-];
 
 function formatCurrency(value) {
   return new Intl.NumberFormat("es-MX", {
@@ -84,10 +52,6 @@ function getImageUrl(item) {
   if (!url) return null;
   if (String(url).startsWith("http://") || String(url).startsWith("https://")) return url;
   return `${STATIC_BASE_URL}/uploads/${url}`;
-}
-
-function onlyDigits(value = "") {
-  return String(value).replace(/\D/g, "");
 }
 
 // ─── Step indicator ──────────────────────────────────────────────────────────
@@ -156,23 +120,13 @@ function Carrito() {
   const [savingAddress, setSavingAddress] = useState(false);
   const [newAddress, setNewAddress] = useState(EMPTY_ADDRESS);
 
-  // Step 3 – payment
-  const [paymentMethod, setPaymentMethod] = useState("card");
   const [processingCheckout, setProcessingCheckout] = useState(false);
-  const [savedCards, setSavedCards] = useState([]);
-  const [selectedCardId, setSelectedCardId] = useState("");
-  const [showCardForm, setShowCardForm] = useState(false);
-  const [newCard, setNewCard] = useState(EMPTY_CARD);
 
   const isAuthenticated = Boolean(user);
   const hasItems = useMemo(() => (cart.items || []).length > 0, [cart.items]);
   const subtotal = useMemo(
     () => (cart.items || []).reduce((acc, item) => acc + Number(item.price) * item.quantity, 0),
     [cart.items]
-  );
-  const selectedAddress = useMemo(
-    () => addresses.find((a) => String(a.id) === String(selectedAddressId)) || null,
-    [addresses, selectedAddressId]
   );
 
   // Load cart
@@ -204,39 +158,13 @@ function Carrito() {
         setAddresses(list);
         if (list.length > 0) setSelectedAddressId(String(list[0].id));
         else setShowAddressForm(true); // auto-open form if no addresses
-      } catch (_error) {
+      } catch {
         setAddresses([]);
         setShowAddressForm(true);
       }
     };
 
     loadAddresses();
-  }, [authLoading, isAuthenticated]);
-
-  useEffect(() => {
-    if (authLoading || !isAuthenticated) return;
-
-    const loadCards = async () => {
-      try {
-        const rows = await tarjetaService.list();
-        const list = Array.isArray(rows) ? rows : [];
-        setSavedCards(list);
-
-        const defaultCard = list.find((item) => item.isDefault) || list[0];
-        if (defaultCard) {
-          setSelectedCardId(String(defaultCard.id));
-          setShowCardForm(false);
-        } else {
-          setSelectedCardId("");
-          setShowCardForm(true);
-        }
-      } catch (_error) {
-        setSavedCards([]);
-        setShowCardForm(true);
-      }
-    };
-
-    loadCards();
   }, [authLoading, isAuthenticated]);
 
   // ── Cart actions ──────────────────────────────────────────────────────────
@@ -326,51 +254,11 @@ function Carrito() {
       setProcessingCheckout(true);
       const payload = {
         shippingAddressId: Number(selectedAddressId),
-        paymentMethod,
       };
-
-      if (paymentMethod === "card") {
-        if (selectedCardId) {
-          payload.cardId = Number(selectedCardId);
-        } else {
-          const holderName = String(newCard.holderName || "").trim();
-          const cardNumber = onlyDigits(newCard.cardNumber);
-          const expMonth = Number.parseInt(String(newCard.expMonth), 10);
-          const expYear = Number.parseInt(String(newCard.expYear), 10);
-          const cvv = onlyDigits(newCard.cvv);
-
-          if (!holderName || cardNumber.length < 13 || cardNumber.length > 19 || cvv.length < 3 || cvv.length > 4) {
-            toast.error("Completa correctamente los datos de la tarjeta.");
-            setProcessingCheckout(false);
-            return;
-          }
-
-          if (!Number.isFinite(expMonth) || expMonth < 1 || expMonth > 12) {
-            toast.error("Mes de expiracion invalido.");
-            setProcessingCheckout(false);
-            return;
-          }
-
-          if (!Number.isFinite(expYear) || expYear < 24) {
-            toast.error("Anio de expiracion invalido.");
-            setProcessingCheckout(false);
-            return;
-          }
-
-          payload.card = {
-            holderName,
-            cardNumber,
-            expMonth,
-            expYear,
-            cvv,
-            isDefault: savedCards.length === 0,
-          };
-        }
-      }
 
       const order = await pedidoService.checkout(payload);
       toast.success(`¡Pedido #${order.id} creado!`);
-      navigate(`/usuarios/pagos?orderId=${order.id}&fromCheckout=1&paymentMethod=${paymentMethod}`);
+      navigate(`/usuarios/pagos?orderId=${order.id}&fromCheckout=1`);
     } catch (error) {
       toast.error(error?.response?.data?.message || "No se pudo completar el pedido.");
     } finally {
@@ -383,14 +271,6 @@ function Carrito() {
     if (!isAuthenticated) return; // handled by auth gate UI
     if (!hasItems) { toast.error("Tu carrito está vacío."); return; }
     setStep(2);
-  };
-
-  const goToStep3 = () => {
-    if (!selectedAddressId) {
-      toast.error("Selecciona o agrega una dirección primero.");
-      return;
-    }
-    setStep(3);
   };
 
   if (authLoading) return null;
@@ -413,14 +293,12 @@ function Carrito() {
           className="mb-2 text-5xl leading-none"
           style={{ fontFamily: '"Cormorant Garamond", "Times New Roman", serif' }}
         >
-          {step === 1 ? "Tu carrito" : step === 2 ? "Dirección de envío" : "Forma de pago"}
+          {step === 1 ? "Tu carrito" : "Dirección de envío"}
         </h1>
         <p className="mb-8 text-sm text-[#5b5866]">
           {step === 1
             ? `${cart.itemCount || 0} artículo(s) en tu compra.`
-            : step === 2
-            ? "¿A dónde enviamos tu pedido?"
-            : "Elige cómo quieres pagar tu pedido."}
+            : "Confirma tu dirección para crear el pedido y continuar al pago."}
         </p>
 
         {isAuthenticated && hasItems && <StepBar current={step} />}
@@ -724,187 +602,11 @@ function Carrito() {
                   </button>
                   <button
                     type="button"
-                    onClick={goToStep3}
-                    className="flex-1 rounded-xl bg-gradient-to-r from-[#6a40d8] via-[#9b24cf] to-[#38ddd6] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
-                  >
-                    Continuar al pago <ChevronRight className="ml-1 inline" size={16} />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ── STEP 3: PAGO ──────────────────────────────────────── */}
-            {step === 3 && (
-              <div className="rounded-3xl border border-[#e8e3f5] bg-white p-6 shadow-[0_25px_70px_-50px_rgba(70,40,160,0.25)]">
-                <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-[#8b83a6]">
-                  Elige tu método de pago
-                </p>
-
-                <div className="space-y-3">
-                  {PAYMENT_OPTIONS.map((option) => (
-                    <label
-                      key={option.value}
-                      className={`flex cursor-pointer items-center gap-4 rounded-2xl border-2 p-4 transition ${
-                        paymentMethod === option.value
-                          ? "border-[#6a40d8] bg-[#faf7ff]"
-                          : "border-[#ebe6f7] bg-white hover:border-[#c9bef5]"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="payment"
-                        value={option.value}
-                        checked={paymentMethod === option.value}
-                        onChange={() => setPaymentMethod(option.value)}
-                        className="accent-[#6a40d8]"
-                      />
-                      <span className="text-2xl">{option.icon}</span>
-                      <div>
-                        <p className="text-sm font-semibold text-[#231f20]">{option.label}</p>
-                        <p className="text-xs text-[#8b83a6]">{option.description}</p>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-
-                {paymentMethod === "card" && (
-                  <div className="mt-4 space-y-3 rounded-2xl border border-[#ebe6f7] bg-[#faf7ff] p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b83a6]">
-                      Tarjeta para este pago
-                    </p>
-
-                    {savedCards.length > 0 && (
-                      <div className="space-y-2">
-                        {savedCards.map((card) => (
-                          <label
-                            key={card.id}
-                            className={`flex cursor-pointer items-center justify-between rounded-xl border-2 px-3 py-2 text-sm ${
-                              String(selectedCardId) === String(card.id)
-                                ? "border-[#6a40d8] bg-white"
-                                : "border-[#e5dcfb] bg-white"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="radio"
-                                name="savedCard"
-                                checked={String(selectedCardId) === String(card.id)}
-                                onChange={() => {
-                                  setSelectedCardId(String(card.id));
-                                  setShowCardForm(false);
-                                }}
-                                className="accent-[#6a40d8]"
-                              />
-                              <span className="capitalize">{card.brand}</span>
-                              <span>**** {card.last4}</span>
-                            </div>
-                            <span className="text-xs text-[#8b83a6]">
-                              {String(card.expMonth).padStart(2, "0")}/{card.expYear}
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowCardForm((prev) => !prev);
-                        if (!showCardForm) setSelectedCardId("");
-                      }}
-                      className="text-xs font-semibold text-[#6a40d8]"
-                    >
-                      {showCardForm ? "Ocultar nueva tarjeta" : "Usar otra tarjeta"}
-                    </button>
-
-                    {(showCardForm || savedCards.length === 0) && (
-                      <div className="grid grid-cols-2 gap-2">
-                        <input
-                          type="text"
-                          value={newCard.holderName}
-                          onChange={(event) => setNewCard((prev) => ({ ...prev, holderName: event.target.value }))}
-                          placeholder="Titular"
-                          className="col-span-2 rounded-xl border border-[#e5dcfb] px-3 py-2 text-sm"
-                        />
-                        <input
-                          type="text"
-                          value={newCard.cardNumber}
-                          onChange={(event) => setNewCard((prev) => ({ ...prev, cardNumber: event.target.value }))}
-                          placeholder="Numero de tarjeta"
-                          className="col-span-2 rounded-xl border border-[#e5dcfb] px-3 py-2 text-sm"
-                        />
-                        <input
-                          type="number"
-                          value={newCard.expMonth}
-                          onChange={(event) => setNewCard((prev) => ({ ...prev, expMonth: event.target.value }))}
-                          placeholder="Mes (MM)"
-                          className="rounded-xl border border-[#e5dcfb] px-3 py-2 text-sm"
-                        />
-                        <input
-                          type="number"
-                          value={newCard.expYear}
-                          onChange={(event) => setNewCard((prev) => ({ ...prev, expYear: event.target.value }))}
-                          placeholder="Anio (YY o YYYY)"
-                          className="rounded-xl border border-[#e5dcfb] px-3 py-2 text-sm"
-                        />
-                        <input
-                          type="password"
-                          value={newCard.cvv}
-                          onChange={(event) => setNewCard((prev) => ({ ...prev, cvv: event.target.value }))}
-                          placeholder="CVV"
-                          className="col-span-2 rounded-xl border border-[#e5dcfb] px-3 py-2 text-sm"
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Resumen del pedido */}
-                <div className="mt-6 rounded-2xl border border-[#ebe6f7] bg-[#faf7ff] p-4 text-sm">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#8b83a6]">
-                    Resumen del pedido
-                  </p>
-                  <div className="space-y-1 text-[#5b5866]">
-                    {cart.items.map((item) => (
-                      <div key={item.id} className="flex justify-between">
-                        <span>
-                          {item.producto?.name || "Producto"} × {item.quantity}
-                        </span>
-                        <span>{formatCurrency(Number(item.price) * item.quantity)}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-3 border-t border-[#e8e3f5] pt-3">
-                    {selectedAddress && (
-                      <p className="mb-2 text-xs text-[#8b83a6]">
-                        📍 {selectedAddress.street}, {selectedAddress.city}, {selectedAddress.state}
-                      </p>
-                    )}
-                    <div
-                      className="flex items-center justify-between text-2xl text-[#231f20]"
-                      style={{ fontFamily: '"Cormorant Garamond", "Times New Roman", serif' }}
-                    >
-                      <span>Total</span>
-                      <span className="font-semibold">{formatCurrency(subtotal)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-5 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setStep(2)}
-                    className="inline-flex items-center gap-1 rounded-xl border border-[#ebe6f7] px-4 py-3 text-sm text-[#5b5866] transition hover:bg-[#faf7ff]"
-                  >
-                    <ArrowLeft size={15} /> Atrás
-                  </button>
-                  <button
-                    type="button"
                     onClick={handleCheckout}
                     disabled={processingCheckout}
-                    className="flex-1 rounded-xl bg-gradient-to-r from-[#6a40d8] via-[#9b24cf] to-[#38ddd6] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
+                    className="flex-1 rounded-xl bg-gradient-to-r from-[#6a40d8] via-[#9b24cf] to-[#38ddd6] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
                   >
-                    {processingCheckout ? "Procesando pedido..." : "Confirmar y pagar"}
+                    {processingCheckout ? "Creando pedido..." : "Continuar a pagos"} <ChevronRight className="ml-1 inline" size={16} />
                   </button>
                 </div>
               </div>
