@@ -24,7 +24,6 @@ router.post('/', adminAuthMiddleware, validateCreateProducto, productoController
 router.put('/:productoId', adminAuthMiddleware, validateProductoIdParam, validateUpdateProducto, productoController.updateProducto);
 router.patch('/:productoId/status', adminAuthMiddleware, validateProductoStatus, productoController.updateProductoStatus);
 router.delete('/:productoId', adminAuthMiddleware, validateProductoIdParam, productoController.deleteProducto);
-router.patch('/:productoId/reactivate', adminAuthMiddleware, validateProductoIdParam, productoController.reactivateProducto);
 
 // Imágenes de producto
 router.get('/:productoId/imagenes', adminAuthMiddleware, validateProductoIdParam, productoImagenController.listImagenes);

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Plus, Search, X, Pencil, Trash2, RefreshCw, ImagePlus, ShoppingBag, Power,
+  Plus, Search, X, Pencil, Trash2, ImagePlus, ShoppingBag, Power,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { productosService, subcategoriasService } from "../../../api/catalogoService";
@@ -187,13 +187,6 @@ export default function AdminProductos() {
     });
   };
 
-  const handleReactivate = async (prod) => {
-    try {
-      await productosService.reactivate(prod.id);
-      toast.success("Producto reactivado");
-      fetchProductos();
-    } catch { toast.error("Error al reactivar producto"); }
-  };
 
   // ─── Image modal ───────────────────────────────────────────────────────────
 
@@ -367,15 +360,9 @@ export default function AdminProductos() {
                               <button onClick={() => openEdit(prod)} title="Editar" className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">
                                 <Pencil size={15} />
                               </button>
-                              {prod.status ? (
-                                <button onClick={() => handleToggleStatus(prod)} title="Desactivar" className="p-2 rounded-lg text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors">
-                                  <Power size={15} />
-                                </button>
-                              ) : (
-                                <button onClick={() => handleReactivate(prod)} title="Reactivar" className="p-2 rounded-lg text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors">
-                                  <RefreshCw size={15} />
-                                </button>
-                              )}
+                              <button onClick={() => handleToggleStatus(prod)} title={prod.status ? "Desactivar" : "Activar"} className="p-2 rounded-lg text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors">
+                                <Power size={15} />
+                              </button>
                               <button onClick={() => handleDelete(prod)} title="Eliminar" className="p-2 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
                                 <Trash2 size={15} />
                               </button>
@@ -432,15 +419,9 @@ export default function AdminProductos() {
                       <button onClick={() => openEdit(prod)} title="Editar" className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">
                         <Pencil size={15} />
                       </button>
-                      {prod.status ? (
-                        <button onClick={() => handleToggleStatus(prod)} title="Desactivar" className="p-2 rounded-lg text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors">
-                          <Power size={15} />
-                        </button>
-                      ) : (
-                        <button onClick={() => handleReactivate(prod)} title="Reactivar" className="p-2 rounded-lg text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors">
-                          <RefreshCw size={15} />
-                        </button>
-                      )}
+                      <button onClick={() => handleToggleStatus(prod)} title={prod.status ? "Desactivar" : "Activar"} className="p-2 rounded-lg text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors">
+                        <Power size={15} />
+                      </button>
                       <button onClick={() => handleDelete(prod)} title="Eliminar" className="p-2 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
                         <Trash2 size={15} />
                       </button>

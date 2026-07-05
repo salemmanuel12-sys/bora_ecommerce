@@ -31,10 +31,6 @@ export const categoriasService = {
   delete(id) {
     return api.delete(`/admin/categorias/${id}`);
   },
-
-  reactivate(id) {
-    return api.patch(`/admin/categorias/${id}/reactivate`);
-  },
 };
 
 // ─── SUBCATEGORÍAS ────────────────────────────────────────────────────────────
@@ -68,10 +64,6 @@ export const subcategoriasService = {
 
   delete(id) {
     return api.delete(`/admin/subcategorias/${id}`);
-  },
-
-  reactivate(id) {
-    return api.patch(`/admin/subcategorias/${id}/reactivate`);
   },
 };
 
@@ -108,9 +100,6 @@ export const productosService = {
     return api.delete(`/admin/productos/${id}`);
   },
 
-  reactivate(id) {
-    return api.patch(`/admin/productos/${id}/reactivate`);
-  },
 
   // ─── IMÁGENES ─────────────────────────────────────────────────────────────
 

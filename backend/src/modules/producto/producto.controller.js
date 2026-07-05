@@ -147,34 +147,13 @@ async function deleteProducto(req, res, next) {
   try {
     assertSuperAdmin(req);
 
-    const producto = await productoService.updateProductoStatus({
+    await productoService.deleteProducto({
       productoId: req.params.productoId,
-      status: false,
     });
 
     return res.status(200).json({
       ok: true,
-      message: 'Producto desactivado correctamente.',
-      data: producto,
-    });
-  } catch (error) {
-    return next(error);
-  }
-}
-
-async function reactivateProducto(req, res, next) {
-  try {
-    assertSuperAdmin(req);
-
-    const producto = await productoService.updateProductoStatus({
-      productoId: req.params.productoId,
-      status: true,
-    });
-
-    return res.status(200).json({
-      ok: true,
-      message: 'Producto reactivado correctamente.',
-      data: producto,
+      message: 'Producto eliminado correctamente.',
     });
   } catch (error) {
     return next(error);
@@ -190,5 +169,4 @@ module.exports = {
   updateProducto,
   updateProductoStatus,
   deleteProducto,
-  reactivateProducto,
 };

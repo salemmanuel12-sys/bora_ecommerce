@@ -103,34 +103,13 @@ async function deleteCategoria(req, res, next) {
   try {
     assertSuperAdmin(req);
 
-    const categoria = await categoriaService.updateCategoriaStatus({
+    await categoriaService.deleteCategoria({
       categoriaId: req.params.categoriaId,
-      status: false,
     });
 
     return res.status(200).json({
       ok: true,
-      message: 'Categoria desactivada correctamente.',
-      data: categoria,
-    });
-  } catch (error) {
-    return next(error);
-  }
-}
-
-async function reactivateCategoria(req, res, next) {
-  try {
-    assertSuperAdmin(req);
-
-    const categoria = await categoriaService.updateCategoriaStatus({
-      categoriaId: req.params.categoriaId,
-      status: true,
-    });
-
-    return res.status(200).json({
-      ok: true,
-      message: 'Categoria reactivada correctamente.',
-      data: categoria,
+      message: 'Categoria eliminada correctamente.',
     });
   } catch (error) {
     return next(error);
@@ -144,5 +123,4 @@ module.exports = {
   updateCategoria,
   updateCategoriaStatus,
   deleteCategoria,
-  reactivateCategoria,
 };

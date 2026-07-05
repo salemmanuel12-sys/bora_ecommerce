@@ -17,6 +17,5 @@ router.post('/', adminAuthMiddleware, validateCreateCategoria, categoriaControll
 router.put('/:categoriaId', adminAuthMiddleware, validateCategoriaIdParam, validateUpdateCategoria, categoriaController.updateCategoria);
 router.patch('/:categoriaId/status', adminAuthMiddleware, validateCategoriaStatus, categoriaController.updateCategoriaStatus);
 router.delete('/:categoriaId', adminAuthMiddleware, validateCategoriaIdParam, categoriaController.deleteCategoria);
-router.patch('/:categoriaId/reactivate', adminAuthMiddleware, validateCategoriaIdParam, categoriaController.reactivateCategoria);
 
 module.exports = router;

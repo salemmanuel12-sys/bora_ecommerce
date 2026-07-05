@@ -316,6 +316,31 @@ async function updateProductoStatus({ productoId, status }) {
   return getProductoById(producto.id);
 }
 
+async function deleteProducto({ productoId }) {
+  const parsedProductoId = Number.parseInt(String(productoId), 10);
+
+  if (!Number.isInteger(parsedProductoId) || parsedProductoId <= 0) {
+    throw new HttpError(400, 'Id de producto invalido.');
+  }
+
+  const producto = await Producto.findByPk(parsedProductoId);
+
+  if (!producto) {
+    throw new HttpError(404, 'Producto no encontrado.');
+  }
+
+  const { OrderItem, CartItem } = require('../../models/loader');
+  const inOrders = await OrderItem.count({ where: { productId: parsedProductoId } });
+
+  if (inOrders > 0) {
+    throw new HttpError(409, 'No se puede eliminar el producto porque está asociado a pedidos existentes.');
+  }
+
+  await CartItem.destroy({ where: { productId: parsedProductoId } });
+  await ProductoImagen.destroy({ where: { productoId: parsedProductoId } });
+  await producto.destroy();
+}
+
 module.exports = {
   listProductos,
   getProductoById,
@@ -323,4 +348,5 @@ module.exports = {
   createProducto,
   updateProducto,
   updateProductoStatus,
+  deleteProducto,
 };

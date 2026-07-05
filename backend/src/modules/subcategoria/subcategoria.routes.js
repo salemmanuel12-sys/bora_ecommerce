@@ -17,6 +17,5 @@ router.post('/', adminAuthMiddleware, validateCreateSubcategoria, subcategoriaCo
 router.put('/:subcategoriaId', adminAuthMiddleware, validateSubcategoriaIdParam, validateUpdateSubcategoria, subcategoriaController.updateSubcategoria);
 router.patch('/:subcategoriaId/status', adminAuthMiddleware, validateSubcategoriaStatus, subcategoriaController.updateSubcategoriaStatus);
 router.delete('/:subcategoriaId', adminAuthMiddleware, validateSubcategoriaIdParam, subcategoriaController.deleteSubcategoria);
-router.patch('/:subcategoriaId/reactivate', adminAuthMiddleware, validateSubcategoriaIdParam, subcategoriaController.reactivateSubcategoria);
 
 module.exports = router;

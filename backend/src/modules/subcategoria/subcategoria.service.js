@@ -248,10 +248,34 @@ async function updateSubcategoriaStatus({ subcategoriaId, status }) {
   return getSubcategoriaById(subcategoria.id);
 }
 
+async function deleteSubcategoria({ subcategoriaId }) {
+  const parsedSubcategoriaId = Number.parseInt(String(subcategoriaId), 10);
+
+  if (!Number.isInteger(parsedSubcategoriaId) || parsedSubcategoriaId <= 0) {
+    throw new HttpError(400, 'Id de subcategoria invalido.');
+  }
+
+  const subcategoria = await Subcategoria.findByPk(parsedSubcategoriaId);
+
+  if (!subcategoria) {
+    throw new HttpError(404, 'Subcategoria no encontrada.');
+  }
+
+  const { Producto } = require('../../models/loader');
+  const childCount = await Producto.count({ where: { subcategoriaId: parsedSubcategoriaId } });
+
+  if (childCount > 0) {
+    throw new HttpError(409, 'No se puede eliminar la subcategoría porque tiene productos asociados.');
+  }
+
+  await subcategoria.destroy();
+}
+
 module.exports = {
   listSubcategorias,
   getSubcategoriaById,
   createSubcategoria,
   updateSubcategoria,
   updateSubcategoriaStatus,
+  deleteSubcategoria,
 };

@@ -106,34 +106,13 @@ async function deleteSubcategoria(req, res, next) {
   try {
     assertSuperAdmin(req);
 
-    const subcategoria = await subcategoriaService.updateSubcategoriaStatus({
+    await subcategoriaService.deleteSubcategoria({
       subcategoriaId: req.params.subcategoriaId,
-      status: false,
     });
 
     return res.status(200).json({
       ok: true,
-      message: 'Subcategoria desactivada correctamente.',
-      data: subcategoria,
-    });
-  } catch (error) {
-    return next(error);
-  }
-}
-
-async function reactivateSubcategoria(req, res, next) {
-  try {
-    assertSuperAdmin(req);
-
-    const subcategoria = await subcategoriaService.updateSubcategoriaStatus({
-      subcategoriaId: req.params.subcategoriaId,
-      status: true,
-    });
-
-    return res.status(200).json({
-      ok: true,
-      message: 'Subcategoria reactivada correctamente.',
-      data: subcategoria,
+      message: 'Subcategoria eliminada correctamente.',
     });
   } catch (error) {
     return next(error);
@@ -147,5 +126,4 @@ module.exports = {
   updateSubcategoria,
   updateSubcategoriaStatus,
   deleteSubcategoria,
-  reactivateSubcategoria,
 };

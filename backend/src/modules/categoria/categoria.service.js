@@ -184,10 +184,34 @@ async function updateCategoriaStatus({ categoriaId, status }) {
   return toPublicCategoria(categoria);
 }
 
+async function deleteCategoria({ categoriaId }) {
+  const parsedCategoriaId = Number.parseInt(String(categoriaId), 10);
+
+  if (!Number.isInteger(parsedCategoriaId) || parsedCategoriaId <= 0) {
+    throw new HttpError(400, 'Id de categoria invalido.');
+  }
+
+  const categoria = await Categoria.findByPk(parsedCategoriaId);
+
+  if (!categoria) {
+    throw new HttpError(404, 'Categoria no encontrada.');
+  }
+
+  const { Subcategoria } = require('../../models/loader');
+  const childCount = await Subcategoria.count({ where: { categoriaId: parsedCategoriaId } });
+
+  if (childCount > 0) {
+    throw new HttpError(409, 'No se puede eliminar la categoría porque tiene subcategorías asociadas.');
+  }
+
+  await categoria.destroy();
+}
+
 module.exports = {
   listCategorias,
   getCategoriaById,
   createCategoria,
   updateCategoria,
   updateCategoriaStatus,
+  deleteCategoria,
 };

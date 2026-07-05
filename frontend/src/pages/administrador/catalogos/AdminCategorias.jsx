@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Search, X, Pencil, Trash2, RefreshCw, Tag, Power } from "lucide-react";
+import { Plus, Search, X, Pencil, Trash2, Tag, Power } from "lucide-react";
 import toast from "react-hot-toast";
 import { categoriasService, subcategoriasService } from "../../../api/catalogoService";
 
@@ -163,16 +163,6 @@ export default function AdminCategorias() {
     });
   };
 
-  const handleReactivate = async (cat) => {
-    try {
-      await categoriasService.reactivate(cat.id);
-      toast.success("Categoría reactivada");
-      fetchCategorias();
-    } catch {
-      toast.error("Error al reactivar categoría");
-    }
-  };
-
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -275,15 +265,9 @@ export default function AdminCategorias() {
                             <button onClick={() => openEdit(cat)} title="Editar" className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">
                               <Pencil size={15} />
                             </button>
-                            {cat.status ? (
-                              <button onClick={() => handleToggleStatus(cat)} title="Desactivar" className="p-2 rounded-lg text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors">
-                                <Power size={15} />
-                              </button>
-                            ) : (
-                              <button onClick={() => handleReactivate(cat)} title="Reactivar" className="p-2 rounded-lg text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors">
-                                <RefreshCw size={15} />
-                              </button>
-                            )}
+                            <button onClick={() => handleToggleStatus(cat)} title={cat.status ? "Desactivar" : "Activar"} className="p-2 rounded-lg text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors">
+                              <Power size={15} />
+                            </button>
                             <button onClick={() => handleDelete(cat)} title="Eliminar" className="p-2 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
                               <Trash2 size={15} />
                             </button>
@@ -331,23 +315,13 @@ export default function AdminCategorias() {
                     >
                       <Pencil size={15} />
                     </button>
-                    {cat.status ? (
-                      <button
-                        onClick={() => handleToggleStatus(cat)}
-                        title="Desactivar"
-                        className="p-2 rounded-lg text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors"
-                      >
-                        <Power size={15} />
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleReactivate(cat)}
-                        title="Reactivar"
-                        className="p-2 rounded-lg text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors"
-                      >
-                        <RefreshCw size={15} />
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleToggleStatus(cat)}
+                      title={cat.status ? "Desactivar" : "Activar"}
+                      className="p-2 rounded-lg text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors"
+                    >
+                      <Power size={15} />
+                    </button>
                     <button
                       onClick={() => handleDelete(cat)}
                       title="Eliminar"
