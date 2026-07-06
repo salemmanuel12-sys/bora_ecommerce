@@ -330,12 +330,9 @@ async function deleteProducto({ productoId }) {
   }
 
   const { OrderItem, CartItem } = require('../../models/loader');
-  const inOrders = await OrderItem.count({ where: { productId: parsedProductoId } });
 
-  if (inOrders > 0) {
-    throw new HttpError(409, 'No se puede eliminar el producto porque está asociado a pedidos existentes.');
-  }
-
+  // Desvincula el producto de pedidos históricos (precio y cantidad ya están capturados)
+  await OrderItem.update({ productId: null }, { where: { productId: parsedProductoId } });
   await CartItem.destroy({ where: { productId: parsedProductoId } });
   await ProductoImagen.destroy({ where: { productoId: parsedProductoId } });
   await producto.destroy();
