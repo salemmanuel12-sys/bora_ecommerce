@@ -329,11 +329,11 @@ async function deleteProducto({ productoId }) {
     throw new HttpError(404, 'Producto no encontrado.');
   }
 
-  const { OrderItem, CartItem } = require('../../models/loader');
+  const { OrderItem, CartItem, ProductoOpinion: Opinion } = require('../../models/loader');
 
-  // Desvincula el producto de pedidos históricos (precio y cantidad ya están capturados)
-  await OrderItem.update({ productId: null }, { where: { productId: parsedProductoId } });
+  await OrderItem.destroy({ where: { productId: parsedProductoId } });
   await CartItem.destroy({ where: { productId: parsedProductoId } });
+  await Opinion.destroy({ where: { productoId: parsedProductoId } });
   await ProductoImagen.destroy({ where: { productoId: parsedProductoId } });
   await producto.destroy();
 }
