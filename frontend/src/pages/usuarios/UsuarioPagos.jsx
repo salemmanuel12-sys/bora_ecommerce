@@ -213,14 +213,57 @@ function UsuarioPagos() {
     }
   };
 
+  const pollForApprovedPayment = async (orderId, { maxAttempts = 20, intervalMs = 2000 } = {}) => {
+    let lastPayment = null;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      try {
+        lastPayment = await pagoService.getByOrder(orderId);
+        setPaymentsByOrder((prev) => ({ ...prev, [orderId]: lastPayment }));
+
+        if (isApprovedStatus(lastPayment?.status)) {
+          setOrders((prev) => prev.map((order) => (
+            order.id === orderId
+              ? {
+                  ...order,
+                  paymentStatus: "Pagado",
+                  status: order.status === "Pendiente" ? "Pagado" : order.status,
+                }
+              : order
+          )));
+          return { payment: lastPayment, approved: true };
+        }
+      } catch (_error) {
+        // Se ignora y se reintenta para no interrumpir el flujo.
+      }
+
+      if (attempt < maxAttempts - 1) {
+        await sleep(intervalMs);
+      }
+    }
+
+    return { payment: lastPayment, approved: false };
+  };
+
   const handleStripeCheckout = async (orderId) => {
     try {
       setWorkingOrderId(orderId);
+      setCheckoutFeedback({
+        orderId,
+        gateway: "stripe",
+        type: "warning",
+        title: "Redirigiendo a Stripe",
+        message: "Se abrirá la pasarela de pago. Después de completarlo volverás a esta vista para confirmar el estado.",
+      });
+
+      navigate(`/usuarios/pagos?orderId=${orderId}&fromCheckout=1`, { replace: true });
+
       const data = await pagoService.createStripeCheckoutSession(orderId);
       if (!data?.checkoutUrl) {
         throw new Error("No se recibio URL de Stripe.");
       }
-      window.location.assign(data.checkoutUrl);
+
+      window.location.href = data.checkoutUrl;
     } catch (error) {
       toast.error(error?.response?.data?.message || error?.message || "No se pudo iniciar Stripe.");
       setWorkingOrderId(null);
@@ -397,6 +440,14 @@ function UsuarioPagos() {
         }
 
         if (gateway === "stripe") {
+          setCheckoutFeedback({
+            orderId,
+            gateway,
+            type: "warning",
+            title: "Validando pago",
+            message: "Estamos verificando la transacción con Stripe. Mantén abierta esta vista hasta que se confirme.",
+          });
+
           // Primero: polling corto por si el webhook ya actualizó la BD
           for (let attempt = 0; attempt < 3; attempt += 1) {
             paymentFromCallback = await pagoService.getByOrder(orderId);
@@ -412,20 +463,31 @@ function UsuarioPagos() {
               paymentFromCallback = await pagoService.confirmStripeCheckout(orderId, { sessionId: stripeSessionId });
             } catch (confirmError) {
               paymentFromCallback = await pagoService.getByOrder(orderId);
-
-              if (!isApprovedStatus(paymentFromCallback?.status)) {
-                throw new Error(
-                  confirmError?.response?.data?.message
-                  || confirmError?.message
-                  || "Stripe no confirmo el pago para este pedido."
-                );
-              }
             }
           }
 
+          if (!isApprovedStatus(paymentFromCallback?.status)) {
+            const pollingResult = await pollForApprovedPayment(orderId);
+            paymentFromCallback = pollingResult.payment;
+          }
+
           if (isApprovedStatus(paymentFromCallback?.status)) {
+            setCheckoutFeedback({
+              orderId,
+              gateway,
+              type: "success",
+              title: "Pago realizado con éxito",
+              message: "Tu pago quedó aprobado y ya puedes seguir el estado del pedido desde esta vista.",
+            });
             toast.success(`Pago con Stripe confirmado para pedido #${orderId}.`);
           } else {
+            setCheckoutFeedback({
+              orderId,
+              gateway,
+              type: "warning",
+              title: "Pago pendiente",
+              message: "El pago aún no se ha confirmado. Seguiremos revisando hasta que Stripe lo apruebe.",
+            });
             toast("El pago esta pendiente de confirmacion. Revisa en unos minutos.");
           }
         }
@@ -481,7 +543,7 @@ function UsuarioPagos() {
         toast.error(error?.response?.data?.message || error?.message || "No se pudo completar la confirmacion del pago.");
       } finally {
         setWorkingOrderId(null);
-        navigate("/usuarios/pagos", { replace: true });
+        navigate(`/usuarios/pagos?orderId=${orderId}`, { replace: true });
       }
     };
 
