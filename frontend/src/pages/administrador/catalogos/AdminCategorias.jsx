@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
-import { Plus, Search, X, Pencil, Trash2, Tag, Power } from "lucide-react";
+import { useEffect, useMemo, useState, useRef } from "react";
+import { Plus, Search, X, Pencil, Trash2, Tag, Power, ImagePlus, UploadCloud } from "lucide-react";
 import toast from "react-hot-toast";
-import { categoriasService, subcategoriasService } from "../../../api/catalogoService";
+import { categoriasService, productosService } from "../../../api/catalogoService";
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:4001/api";
+const STATIC_BASE_URL = API_BASE_URL.replace(/\/api$/, "");
 
 export default function AdminCategorias() {
   const [categorias, setCategorias] = useState([]);
@@ -15,9 +18,15 @@ export default function AdminCategorias() {
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState("create"); // 'create' | 'edit'
   const [selectedCategoria, setSelectedCategoria] = useState(null);
-  const [form, setForm] = useState({ name: "", description: "", status: true });
+  const [form, setForm] = useState({ name: "", description: "", imageUrl: "", status: true });
   const [formErrors, setFormErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const previewImageSrc = typeof previewUrl === "string" && previewUrl.trim() ? previewUrl : null;
 
   // Confirm modal
   const [showConfirm, setShowConfirm] = useState(false);
@@ -70,16 +79,20 @@ export default function AdminCategorias() {
   const openCreate = () => {
     setModalMode("create");
     setSelectedCategoria(null);
-    setForm({ name: "", description: "", status: true });
+    setForm({ name: "", description: "", imageUrl: "", status: true });
     setFormErrors({});
+    setSelectedFile(null);
+    setPreviewUrl("");
     setShowModal(true);
   };
 
   const openEdit = (cat) => {
     setModalMode("edit");
     setSelectedCategoria(cat);
-    setForm({ name: cat.name, description: cat.description || "", status: cat.status });
+    setForm({ name: cat.name, description: cat.description || "", imageUrl: cat.imageUrl || "", status: cat.status });
     setFormErrors({});
+    setSelectedFile(null);
+    setPreviewUrl(getCategoryImageUrl(cat.imageUrl));
     setShowModal(true);
   };
 
@@ -97,17 +110,34 @@ export default function AdminCategorias() {
     if (!validateForm()) return;
     setSaving(true);
     try {
-      const payload = {
-        name: form.name.trim(),
-        description: form.description.trim() || undefined,
-        status: form.status,
-      };
-      if (modalMode === "create") {
-        await categoriasService.create(payload);
-        toast.success("Categoría creada correctamente");
+      if (selectedFile) {
+        const formData = new FormData();
+        formData.append("name", form.name.trim());
+        formData.append("description", form.description.trim() || "");
+        formData.append("status", String(form.status));
+        formData.append("imagen", selectedFile);
+
+        if (modalMode === "create") {
+          await categoriasService.create(formData);
+          toast.success("Categoría creada correctamente");
+        } else {
+          await categoriasService.update(selectedCategoria.id, formData);
+          toast.success("Categoría actualizada correctamente");
+        }
       } else {
-        await categoriasService.update(selectedCategoria.id, payload);
-        toast.success("Categoría actualizada correctamente");
+        const payload = {
+          name: form.name.trim(),
+          description: form.description.trim() || undefined,
+          imageUrl: form.imageUrl.trim(),
+          status: form.status,
+        };
+        if (modalMode === "create") {
+          await categoriasService.create(payload);
+          toast.success("Categoría creada correctamente");
+        } else {
+          await categoriasService.update(selectedCategoria.id, payload);
+          toast.success("Categoría actualizada correctamente");
+        }
       }
       setShowModal(false);
       fetchCategorias();
@@ -142,7 +172,7 @@ export default function AdminCategorias() {
   const handleDelete = (cat) => {
     askConfirm(async () => {
       try {
-        const childRes = await subcategoriasService.list({
+        const childRes = await productosService.list({
           categoriaId: cat.id,
           page: 1,
           limit: 1,
@@ -150,7 +180,7 @@ export default function AdminCategorias() {
         });
         const childTotal = childRes?.data?.pagination?.total ?? childRes?.data?.data?.length ?? 0;
         if (childTotal > 0) {
-          toast.error("No puedes eliminar esta categoría porque tiene subcategorías asociadas");
+          toast.error("No puedes eliminar esta categoría porque tiene productos asociados");
           return;
         }
 
@@ -161,6 +191,31 @@ export default function AdminCategorias() {
         toast.error("Error al eliminar categoría");
       }
     });
+  };
+
+  const handleFileSelection = (file) => {
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Solo se permiten imágenes JPG, PNG o WEBP");
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("La imagen no puede superar 2 MB");
+      return;
+    }
+
+    setSelectedFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setPreviewUrl(reader.result);
+    reader.readAsDataURL(file);
+  };
+
+  const clearSelectedFile = () => {
+    setSelectedFile(null);
+    setPreviewUrl("");
+    setForm((f) => ({ ...f, imageUrl: "" }));
   };
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -245,8 +300,14 @@ export default function AdminCategorias() {
                       <tr key={cat.id} className="hover:bg-gray-50/80 dark:hover:bg-gray-700/30 transition-colors">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-9 h-9 flex items-center justify-center rounded-lg bg-sky-600/10 text-sky-600 dark:text-sky-400 shrink-0">
-                              <Tag size={16} />
+                            <div className="w-9 h-9 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-600 shrink-0 bg-sky-600/10">
+                              {cat.imageUrl ? (
+                                <img src={getCategoryImageUrl(cat.imageUrl)} alt={cat.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-sky-600 dark:text-sky-400">
+                                  <Tag size={16} />
+                                </div>
+                              )}
                             </div>
                             <span className="font-medium text-gray-800 dark:text-white truncate">{cat.name}</span>
                           </div>
@@ -289,8 +350,14 @@ export default function AdminCategorias() {
                 >
                   <div className="p-4">
                     <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-sky-600/10 text-sky-600 dark:text-sky-400 shrink-0">
-                        <Tag size={18} />
+                      <div className="w-10 h-10 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-600 bg-sky-600/10 shrink-0">
+                        {cat.imageUrl ? (
+                          <img src={getCategoryImageUrl(cat.imageUrl)} alt={cat.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-sky-600 dark:text-sky-400">
+                            <Tag size={18} />
+                          </div>
+                        )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
@@ -415,6 +482,52 @@ export default function AdminCategorias() {
                 {formErrors.description && <p className="text-xs text-red-500 mt-1">{formErrors.description}</p>}
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Imagen</label>
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragActive(true);
+                  }}
+                  onDragLeave={() => setDragActive(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragActive(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) handleFileSelection(file);
+                  }}
+                  className={`rounded-xl border-2 border-dashed px-4 py-5 text-center transition-colors ${dragActive ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" : "border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/40"}`}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleFileSelection(file);
+                    }}
+                  />
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <div className="rounded-full bg-blue-100 dark:bg-blue-900/30 p-3 text-blue-600 dark:text-blue-400">
+                      {dragActive ? <UploadCloud size={18} /> : <ImagePlus size={18} />}
+                    </div>
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Arrastra la imagen aquí o <button type="button" onClick={() => fileInputRef.current?.click()} className="text-blue-600 hover:underline">selecciona un archivo</button></p>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">JPG, PNG o WEBP · máx. 2 MB</p>
+                  </div>
+                </div>
+                {(previewImageSrc || selectedFile) && (
+                  <div className="mt-3 rounded-xl border border-gray-200 dark:border-gray-700 p-3">
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Vista previa</p>
+                      <button type="button" onClick={clearSelectedFile} className="text-xs text-red-500 hover:underline">Quitar</button>
+                    </div>
+                    {previewImageSrc ? (
+                      <img src={previewImageSrc} alt="Vista previa de la categoría" className="h-32 w-full object-cover rounded-lg" />
+                    ) : null}
+                  </div>
+                )}
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Estado</label>
                 <EstadoPill
                   value={form.status ? 1 : 0}
@@ -490,6 +603,16 @@ function EstadoPill({ value, onChange, labels = ["Activos", "Inactivos"] }) {
       </button>
     </div>
   );
+}
+
+function getCategoryImageUrl(value) {
+  if (!value) return "";
+
+  if (/^https?:\/\//i.test(value)) {
+    return value;
+  }
+
+  return `${STATIC_BASE_URL}/uploads/${value}`;
 }
 
 function getPaginationItems(currentPage, totalPages) {

@@ -1,3 +1,5 @@
+const path = require('path');
+const fs = require('fs');
 const { Op } = require('sequelize');
 const { Categoria } = require('../../models/loader');
 const HttpError = require('../../utils/httpError');
@@ -24,6 +26,23 @@ function parseBoolean(value, fallback = false) {
   return fallback;
 }
 
+function removeCategoriaImageFile(imageUrl) {
+  if (!imageUrl) {
+    return;
+  }
+
+  const safeFilename = path.basename(String(imageUrl));
+  const filePath = path.join(__dirname, '..', '..', '..', 'uploadsImages', 'categorias', safeFilename);
+
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  } catch (_error) {
+    // Ignorar si no se puede eliminar el archivo del disco
+  }
+}
+
 function toPublicCategoria(categoria) {
   const item = categoria?.get ? categoria.get({ plain: true }) : categoria;
 
@@ -32,6 +51,7 @@ function toPublicCategoria(categoria) {
     uuid: item.uuid,
     name: item.name,
     description: item.description,
+    imageUrl: item.imageUrl,
     status: Boolean(item.status),
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
@@ -89,9 +109,10 @@ async function getCategoriaById(categoriaId) {
   return toPublicCategoria(categoria);
 }
 
-async function createCategoria({ name, description, status = true }) {
+async function createCategoria({ name, description, imageUrl, status = true }) {
   const cleanName = sanitizeText(name, 120);
   const cleanDescription = sanitizeText(description || '', 255) || null;
+  const cleanImageUrl = sanitizeText(imageUrl || '', 500) || null;
   const cleanStatus = Boolean(status);
 
   if (!cleanName) {
@@ -111,13 +132,14 @@ async function createCategoria({ name, description, status = true }) {
   const categoria = await Categoria.create({
     name: cleanName,
     description: cleanDescription,
+    imageUrl: cleanImageUrl,
     status: cleanStatus,
   });
 
   return toPublicCategoria(categoria);
 }
 
-async function updateCategoria({ categoriaId, name, description, status }) {
+async function updateCategoria({ categoriaId, name, description, imageUrl, status }) {
   const parsedCategoriaId = Number.parseInt(String(categoriaId), 10);
 
   if (!Number.isInteger(parsedCategoriaId) || parsedCategoriaId <= 0) {
@@ -132,6 +154,10 @@ async function updateCategoria({ categoriaId, name, description, status }) {
 
   const cleanName = sanitizeText(name, 120);
   const cleanDescription = sanitizeText(description || '', 255) || null;
+  const imageWasExplicitlyProvided = imageUrl !== undefined;
+  const cleanImageUrl = imageWasExplicitlyProvided
+    ? (sanitizeText(imageUrl || '', 500) || null)
+    : categoria.imageUrl;
 
   if (!cleanName) {
     throw new HttpError(400, 'El nombre de la categoria es obligatorio.');
@@ -151,7 +177,12 @@ async function updateCategoria({ categoriaId, name, description, status }) {
   const payload = {
     name: cleanName,
     description: cleanDescription,
+    imageUrl: cleanImageUrl,
   };
+
+  if (imageWasExplicitlyProvided && categoria.imageUrl && cleanImageUrl !== categoria.imageUrl) {
+    removeCategoriaImageFile(categoria.imageUrl);
+  }
 
   if (typeof status === 'boolean') {
     payload.status = status;
@@ -197,11 +228,15 @@ async function deleteCategoria({ categoriaId }) {
     throw new HttpError(404, 'Categoria no encontrada.');
   }
 
-  const { Subcategoria } = require('../../models/loader');
-  const childCount = await Subcategoria.count({ where: { categoriaId: parsedCategoriaId } });
+  const { Producto } = require('../../models/loader');
+  const childCount = await Producto.count({ where: { categoriaId: parsedCategoriaId } });
 
   if (childCount > 0) {
-    throw new HttpError(409, 'No se puede eliminar la categoría porque tiene subcategorías asociadas.');
+    throw new HttpError(409, 'No se puede eliminar la categoría porque tiene productos asociados.');
+  }
+
+  if (categoria.imageUrl) {
+    removeCategoriaImageFile(categoria.imageUrl);
   }
 
   await categoria.destroy();

@@ -11,10 +11,15 @@ const MAX_FILES = 10;
 const MAX_BANNER_SIZE_BYTES = 8 * 1024 * 1024; // 8 MB
 
 const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploadsImages', 'productos');
+const CATEGORY_UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploadsImages', 'categorias');
 const BANNER_UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploadsBanner');
 
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+
+if (!fs.existsSync(CATEGORY_UPLOAD_DIR)) {
+  fs.mkdirSync(CATEGORY_UPLOAD_DIR, { recursive: true });
 }
 
 if (!fs.existsSync(BANNER_UPLOAD_DIR)) {
@@ -62,6 +67,24 @@ const _multerUpload = multer({
   },
   fileFilter,
 }).array('imagenes', MAX_FILES);
+
+const _multerCategoryUpload = multer({
+  storage: multer.diskStorage({
+    destination(_req, _file, cb) {
+      cb(null, CATEGORY_UPLOAD_DIR);
+    },
+    filename(_req, file, cb) {
+      const ext = path.extname(file.originalname).toLowerCase();
+      const uniqueName = `${crypto.randomUUID()}-${Date.now()}${ext}`;
+      cb(null, uniqueName);
+    },
+  }),
+  limits: {
+    fileSize: MAX_SIZE_BYTES,
+    files: 1,
+  },
+  fileFilter,
+}).single('imagen');
 
 const _multerBannerUpload = multer({
   storage: multer.diskStorage({
@@ -111,6 +134,32 @@ function handleUploadProductoImagenes(req, res, next) {
   });
 }
 
+function handleUploadCategoriaImagen(req, res, next) {
+  _multerCategoryUpload(req, res, (err) => {
+    if (!err) {
+      return next();
+    }
+
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return next(new HttpError(400, 'La imagen de la categoría no puede superar 2 MB.'));
+    }
+
+    if (err.code === 'LIMIT_FILE_COUNT') {
+      return next(new HttpError(400, 'Solo se permite una imagen por categoría.'));
+    }
+
+    if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+      return next(new HttpError(400, 'Campo de archivo inesperado. Usa el campo "imagen".'));
+    }
+
+    if (err instanceof HttpError) {
+      return next(err);
+    }
+
+    return next(new HttpError(400, 'Error al procesar la imagen de la categoría.'));
+  });
+}
+
 function handleUploadBannerImagen(req, res, next) {
   _multerBannerUpload(req, res, (err) => {
     if (!err) {
@@ -137,4 +186,4 @@ function handleUploadBannerImagen(req, res, next) {
   });
 }
 
-module.exports = { handleUploadProductoImagenes, handleUploadBannerImagen };
+module.exports = { handleUploadProductoImagenes, handleUploadCategoriaImagen, handleUploadBannerImagen };

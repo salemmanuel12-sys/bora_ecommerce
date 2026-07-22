@@ -3,25 +3,61 @@ import {
   Plus, Search, X, Pencil, Trash2, ImagePlus, ShoppingBag, Power,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { productosService, subcategoriasService } from "../../../api/catalogoService";
+import { productosService, categoriasService } from "../../../api/catalogoService";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace("/api", "") || "http://127.0.0.1:4001";
 
+function createAttributeRow() {
+  return { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, nombre: "", valor: "" };
+}
+
+function mapProductoAttributes(atributos = []) {
+  return Array.isArray(atributos)
+    ? atributos.map((item) => ({
+        id: `${item?.id ?? item?.atributoId ?? "attr"}-${item?.valorId ?? item?.valor?.id ?? "value"}`,
+        nombre: item?.atributo?.nombre || item?.nombre || "",
+        valor: item?.valor?.valor || item?.valor || "",
+      }))
+    : [];
+}
+
+function normalizeAttributeRows(rows = []) {
+  return rows
+    .map((row) => ({
+      nombre: String(row?.nombre || "").trim(),
+      valor: String(row?.valor || "").trim(),
+    }))
+    .filter((row) => row.nombre || row.valor);
+}
+
 export default function AdminProductos() {
   const [productos, setProductos] = useState([]);
-  const [subcategorias, setSubcategorias] = useState([]);
+  const [categorias, setCategorias] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [limit] = useState(10);
   const [search, setSearch] = useState("");
-  const [filterSubcategoriaId, setFilterSubcategoriaId] = useState("");
+  const [filterCategoriaId, setFilterCategoriaId] = useState("");
   const [statusFilter, setStatusFilter] = useState(1); // 1 = activos, 0 = inactivos
 
   // Product modal
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState("create");
   const [selectedProducto, setSelectedProducto] = useState(null);
-  const [form, setForm] = useState({ subcategoriaId: "", name: "", description: "", price: "", stock: "0", sku: "", status: true });
+  const [form, setForm] = useState({
+    categoriaId: "",
+    name: "",
+    description: "",
+    price: "",
+    stock: "0",
+    peso: "",
+    alto: "",
+    ancho: "",
+    largo: "",
+    sku: "",
+    status: true,
+    atributos: [],
+  });
   const [formErrors, setFormErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
@@ -37,17 +73,17 @@ export default function AdminProductos() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
 
-  useEffect(() => { fetchSubcategorias(); }, []);
+  useEffect(() => { fetchCategorias(); }, []);
 
   useEffect(() => {
     fetchProductos();
     setCurrentPage(1);
   }, [search]);
 
-  const fetchSubcategorias = async () => {
+  const fetchCategorias = async () => {
     try {
-      const res = await subcategoriasService.list({ limit: 100 });
-      setSubcategorias(res.data?.data || []);
+      const res = await categoriasService.list({ limit: 100, include_inactive: true });
+      setCategorias(res.data?.data || []);
     } catch { /* non-critical */ }
   };
 
@@ -72,10 +108,10 @@ export default function AdminProductos() {
   const filteredProductos = useMemo(() => {
     return productos.filter((prod) => {
       const byStatus = statusFilter === 1 ? prod.status : !prod.status;
-      const bySubcategoria = filterSubcategoriaId ? String(prod.subcategoriaId) === String(filterSubcategoriaId) : true;
-      return byStatus && bySubcategoria;
+      const byCategoria = filterCategoriaId ? String(prod.categoriaId) === String(filterCategoriaId) : true;
+      return byStatus && byCategoria;
     });
-  }, [productos, statusFilter, filterSubcategoriaId]);
+  }, [productos, statusFilter, filterCategoriaId]);
 
   const total = filteredProductos.length;
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -97,7 +133,20 @@ export default function AdminProductos() {
   const openCreate = () => {
     setModalMode("create");
     setSelectedProducto(null);
-    setForm({ subcategoriaId: filterSubcategoriaId || "", name: "", description: "", price: "", stock: "0", sku: "", status: true });
+    setForm({
+      categoriaId: filterCategoriaId || "",
+      name: "",
+      description: "",
+      price: "",
+      stock: "0",
+      peso: "",
+      alto: "",
+      ancho: "",
+      largo: "",
+      sku: "",
+      status: true,
+      atributos: [],
+    });
     setFormErrors({});
     setShowModal(true);
   };
@@ -106,13 +155,18 @@ export default function AdminProductos() {
     setModalMode("edit");
     setSelectedProducto(prod);
     setForm({
-      subcategoriaId: String(prod.subcategoriaId),
+      categoriaId: String(prod.categoriaId),
       name: prod.name,
       description: prod.description || "",
       price: String(prod.price),
       stock: String(prod.stock),
+      peso: prod.peso === null || prod.peso === undefined ? "" : String(prod.peso),
+      alto: prod.alto === null || prod.alto === undefined ? "" : String(prod.alto),
+      ancho: prod.ancho === null || prod.ancho === undefined ? "" : String(prod.ancho),
+      largo: prod.largo === null || prod.largo === undefined ? "" : String(prod.largo),
       sku: prod.sku || "",
       status: prod.status,
+      atributos: mapProductoAttributes(prod.atributos),
     });
     setFormErrors({});
     setShowModal(true);
@@ -120,14 +174,47 @@ export default function AdminProductos() {
 
   const validateForm = () => {
     const errors = {};
-    if (!form.subcategoriaId) errors.subcategoriaId = "Selecciona una subcategoría";
+    if (!form.categoriaId) errors.categoriaId = "Selecciona una categoría";
     if (!form.name.trim()) errors.name = "El nombre es obligatorio";
     else if (form.name.trim().length < 2) errors.name = "Mínimo 2 caracteres";
     else if (form.name.trim().length > 150) errors.name = "Máximo 150 caracteres";
     if (!form.price && form.price !== "0") errors.price = "El precio es obligatorio";
     else if (isNaN(Number(form.price)) || Number(form.price) < 0) errors.price = "Precio inválido";
     if (form.stock !== "" && (isNaN(Number(form.stock)) || Number(form.stock) < 0 || !Number.isInteger(Number(form.stock)))) errors.stock = "Stock debe ser un entero >= 0";
+    if (form.peso !== "" && (isNaN(Number(form.peso)) || Number(form.peso) < 0)) errors.peso = "Peso inválido";
+    if (form.alto !== "" && (isNaN(Number(form.alto)) || Number(form.alto) < 0)) errors.alto = "Alto inválido";
+    if (form.ancho !== "" && (isNaN(Number(form.ancho)) || Number(form.ancho) < 0)) errors.ancho = "Ancho inválido";
+    if (form.largo !== "" && (isNaN(Number(form.largo)) || Number(form.largo) < 0)) errors.largo = "Largo inválido";
     if (form.sku && form.sku.length > 100) errors.sku = "Máximo 100 caracteres";
+
+    const normalizedAttributes = normalizeAttributeRows(form.atributos);
+    const duplicateKeys = new Set();
+
+    for (const row of normalizedAttributes) {
+      if (!row.nombre || !row.valor) {
+        errors.atributos = "Completa nombre y valor en cada atributo o elimina la fila vacía.";
+        break;
+      }
+
+      const key = `${row.nombre.toLowerCase()}::${row.valor.toLowerCase()}`;
+      if (duplicateKeys.has(key)) {
+        errors.atributos = "No repitas el mismo atributo y valor.";
+        break;
+      }
+
+      duplicateKeys.add(key);
+
+      if (row.nombre.length > 80) {
+        errors.atributos = "El nombre del atributo tiene máximo 80 caracteres.";
+        break;
+      }
+
+      if (row.valor.length > 120) {
+        errors.atributos = "El valor del atributo tiene máximo 120 caracteres.";
+        break;
+      }
+    }
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -137,13 +224,18 @@ export default function AdminProductos() {
     setSaving(true);
     try {
       const payload = {
-        subcategoriaId: Number(form.subcategoriaId),
+        categoriaId: Number(form.categoriaId),
         name: form.name.trim(),
         description: form.description.trim() || undefined,
         price: Number(form.price),
         stock: form.stock !== "" ? Number(form.stock) : 0,
+        peso: form.peso !== "" ? Number(form.peso) : null,
+        alto: form.alto !== "" ? Number(form.alto) : null,
+        ancho: form.ancho !== "" ? Number(form.ancho) : null,
+        largo: form.largo !== "" ? Number(form.largo) : null,
         sku: form.sku.trim() || undefined,
         status: form.status,
+        atributos: normalizeAttributeRows(form.atributos),
       };
       if (modalMode === "create") {
         await productosService.create(payload);
@@ -185,6 +277,28 @@ export default function AdminProductos() {
         fetchProductos();
       } catch { toast.error("Error al eliminar producto"); }
     });
+  };
+
+  const updateAttributeRow = (index, field, value) => {
+    setForm((current) => {
+      const next = [...current.atributos];
+      next[index] = { ...next[index], [field]: value };
+      return { ...current, atributos: next };
+    });
+  };
+
+  const addAttributeRow = () => {
+    setForm((current) => ({
+      ...current,
+      atributos: [...current.atributos, createAttributeRow()],
+    }));
+  };
+
+  const removeAttributeRow = (index) => {
+    setForm((current) => ({
+      ...current,
+      atributos: current.atributos.filter((_, rowIndex) => rowIndex !== index),
+    }));
   };
 
 
@@ -268,16 +382,16 @@ export default function AdminProductos() {
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <select
-              value={filterSubcategoriaId}
+              value={filterCategoriaId}
               onChange={(e) => {
-                setFilterSubcategoriaId(e.target.value);
+                setFilterCategoriaId(e.target.value);
                 setCurrentPage(1);
               }}
               className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">Todas las subcategorías</option>
-              {subcategorias.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
+              <option value="">Todas las categorías</option>
+              {categorias.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
 
@@ -315,7 +429,7 @@ export default function AdminProductos() {
                       <th className="px-4 py-3 font-semibold">SKU</th>
                       <th className="px-4 py-3 font-semibold">Precio</th>
                       <th className="px-4 py-3 font-semibold">Stock</th>
-                      <th className="px-4 py-3 font-semibold">Subcategoría</th>
+                      <th className="px-4 py-3 font-semibold">Categoría</th>
                       <th className="px-4 py-3 font-semibold">Estado</th>
                       <th className="px-4 py-3 font-semibold text-right">Acciones</th>
                     </tr>
@@ -346,7 +460,7 @@ export default function AdminProductos() {
                               {prod.stock}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{prod.subcategoria?.name || "Sin subcategoría"}</td>
+                          <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{prod.categoria?.name || "Sin categoría"}</td>
                           <td className="px-4 py-3">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${prod.status ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"}`}>
                               {prod.status ? "Activo" : "Inactivo"}
@@ -407,7 +521,7 @@ export default function AdminProductos() {
                               Stock: {prod.stock}
                             </span>
                           </div>
-                          <p className="mt-1 text-xs text-indigo-600 dark:text-indigo-400 truncate">{prod.subcategoria?.name || "Sin subcategoría"}</p>
+                          <p className="mt-1 text-xs text-indigo-600 dark:text-indigo-400 truncate">{prod.categoria?.name || "Sin categoría"}</p>
                         </div>
                       </div>
                     </div>
@@ -488,18 +602,18 @@ export default function AdminProductos() {
             </h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Subcategoría <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Categoría <span className="text-red-500">*</span></label>
                 <select
-                  value={form.subcategoriaId}
-                  onChange={(e) => setForm((f) => ({ ...f, subcategoriaId: e.target.value }))}
-                  className={`w-full px-3 py-2 rounded-lg border text-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.subcategoriaId ? "border-red-400" : "border-gray-300 dark:border-gray-600"}`}
+                  value={form.categoriaId}
+                  onChange={(e) => setForm((f) => ({ ...f, categoriaId: e.target.value }))}
+                  className={`w-full px-3 py-2 rounded-lg border text-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.categoriaId ? "border-red-400" : "border-gray-300 dark:border-gray-600"}`}
                 >
-                  <option value="">Seleccionar subcategoría...</option>
-                  {subcategorias.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}{s.categoria ? ` (${s.categoria.name})` : ""}</option>
+                  <option value="">Seleccionar categoría...</option>
+                  {categorias.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
-                {formErrors.subcategoriaId && <p className="text-xs text-red-500 mt-1">{formErrors.subcategoriaId}</p>}
+                {formErrors.categoriaId && <p className="text-xs text-red-500 mt-1">{formErrors.categoriaId}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre <span className="text-red-500">*</span></label>
@@ -550,6 +664,60 @@ export default function AdminProductos() {
                   {formErrors.stock && <p className="text-xs text-red-500 mt-1">{formErrors.stock}</p>}
                 </div>
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Peso (kg)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.peso}
+                    onChange={(e) => setForm((f) => ({ ...f, peso: e.target.value }))}
+                    placeholder="Ej. 1.25"
+                    className={`w-full px-3 py-2 rounded-lg border text-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.peso ? "border-red-400" : "border-gray-300 dark:border-gray-600"}`}
+                  />
+                  {formErrors.peso && <p className="text-xs text-red-500 mt-1">{formErrors.peso}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Alto (cm)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.alto}
+                    onChange={(e) => setForm((f) => ({ ...f, alto: e.target.value }))}
+                    placeholder="Ej. 15.00"
+                    className={`w-full px-3 py-2 rounded-lg border text-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.alto ? "border-red-400" : "border-gray-300 dark:border-gray-600"}`}
+                  />
+                  {formErrors.alto && <p className="text-xs text-red-500 mt-1">{formErrors.alto}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ancho (cm)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.ancho}
+                    onChange={(e) => setForm((f) => ({ ...f, ancho: e.target.value }))}
+                    placeholder="Ej. 8.00"
+                    className={`w-full px-3 py-2 rounded-lg border text-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.ancho ? "border-red-400" : "border-gray-300 dark:border-gray-600"}`}
+                  />
+                  {formErrors.ancho && <p className="text-xs text-red-500 mt-1">{formErrors.ancho}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Largo (cm)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.largo}
+                    onChange={(e) => setForm((f) => ({ ...f, largo: e.target.value }))}
+                    placeholder="Ej. 20.00"
+                    className={`w-full px-3 py-2 rounded-lg border text-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.largo ? "border-red-400" : "border-gray-300 dark:border-gray-600"}`}
+                  />
+                  {formErrors.largo && <p className="text-xs text-red-500 mt-1">{formErrors.largo}</p>}
+                </div>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SKU</label>
                 <input
@@ -560,6 +728,61 @@ export default function AdminProductos() {
                   className={`w-full px-3 py-2 rounded-lg border text-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${formErrors.sku ? "border-red-400" : "border-gray-300 dark:border-gray-600"}`}
                 />
                 {formErrors.sku && <p className="text-xs text-red-500 mt-1">{formErrors.sku}</p>}
+              </div>
+              <div className="rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 p-4">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Atributos del producto</label>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Agrega pares nombre/valor como Color, Talla o Voltaje.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addAttributeRow}
+                    className="px-3 py-2 rounded-lg bg-gray-900 text-white text-xs font-semibold hover:bg-black transition-colors"
+                  >
+                    Agregar atributo
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {form.atributos.length === 0 ? (
+                    <p className="text-sm text-gray-400 dark:text-gray-500">Sin atributos añadidos.</p>
+                  ) : (
+                    form.atributos.map((row, index) => (
+                      <div key={row.id || index} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Nombre</label>
+                          <input
+                            type="text"
+                            value={row.nombre}
+                            onChange={(event) => updateAttributeRow(index, "nombre", event.target.value)}
+                            placeholder="Ej. Color"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Valor</label>
+                          <input
+                            type="text"
+                            value={row.valor}
+                            onChange={(event) => updateAttributeRow(index, "valor", event.target.value)}
+                            placeholder="Ej. Rojo"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeAttributeRow(index)}
+                          className="px-3 py-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-400 dark:hover:bg-red-900/20 text-sm"
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {formErrors.atributos && <p className="text-xs text-red-500 mt-3">{formErrors.atributos}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Estado</label>

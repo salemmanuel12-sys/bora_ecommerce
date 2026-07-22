@@ -296,7 +296,7 @@ function ProductoDetalle() {
 
             <div className="rounded-[2rem] border border-[#ebe6f7] bg-white p-6 shadow-[0_28px_70px_-50px_rgba(70,40,160,0.35)] sm:p-8">
               <p className="text-xs uppercase tracking-[0.24em] text-[#7a52de]">
-                {producto.subcategoria?.categoria?.name || "Colección"}
+                {producto.categoria?.name || producto.subcategoria?.categoria?.name || "Colección"}
               </p>
               <h1 className="mt-2 text-5xl leading-[0.95] text-[#231f20]" style={{ fontFamily: '"Cormorant Garamond", "Times New Roman", serif' }}>
                 {producto.name}
@@ -315,6 +315,59 @@ function ProductoDetalle() {
               <p className="mt-6 text-sm leading-7 text-[#5c5968]">
                 {producto.description || "Pieza artesanal con acabados premium y diseño contemporáneo."}
               </p>
+
+              {Array.isArray(producto.atributos) && producto.atributos.length > 0 ? (
+                <div className="mt-6">
+                  <p className="text-xs uppercase tracking-[0.22em] text-[#8f86a7]">Atributos</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {producto.atributos.map((item) => (
+                      <div key={`${item.id || item.atributoId}-${item.valorId}`} className="rounded-2xl border border-[#ece7f7] bg-[#fcfbff] px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-[#8f86a7]">
+                          {item.atributo?.nombre || "Atributo"}
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-[#2d2641]">
+                          {item.valor?.valor || "Sin valor"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {(producto.peso !== null && producto.peso !== undefined)
+              || (producto.alto !== null && producto.alto !== undefined)
+              || (producto.ancho !== null && producto.ancho !== undefined)
+              || (producto.largo !== null && producto.largo !== undefined) ? (
+                <div className="mt-6">
+                  <p className="text-xs uppercase tracking-[0.22em] text-[#8f86a7]">Dimensiones y peso</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {producto.peso !== null && producto.peso !== undefined ? (
+                      <div className="rounded-2xl border border-[#ece7f7] bg-[#fcfbff] px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-[#8f86a7]">Peso</p>
+                        <p className="mt-1 text-sm font-semibold text-[#2d2641]">{Number(producto.peso).toFixed(2)} kg</p>
+                      </div>
+                    ) : null}
+                    {producto.alto !== null && producto.alto !== undefined ? (
+                      <div className="rounded-2xl border border-[#ece7f7] bg-[#fcfbff] px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-[#8f86a7]">Alto</p>
+                        <p className="mt-1 text-sm font-semibold text-[#2d2641]">{Number(producto.alto).toFixed(2)} cm</p>
+                      </div>
+                    ) : null}
+                    {producto.ancho !== null && producto.ancho !== undefined ? (
+                      <div className="rounded-2xl border border-[#ece7f7] bg-[#fcfbff] px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-[#8f86a7]">Ancho</p>
+                        <p className="mt-1 text-sm font-semibold text-[#2d2641]">{Number(producto.ancho).toFixed(2)} cm</p>
+                      </div>
+                    ) : null}
+                    {producto.largo !== null && producto.largo !== undefined ? (
+                      <div className="rounded-2xl border border-[#ece7f7] bg-[#fcfbff] px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-[#8f86a7]">Largo</p>
+                        <p className="mt-1 text-sm font-semibold text-[#2d2641]">{Number(producto.largo).toFixed(2)} cm</p>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
 
               <div className="mt-6 flex items-end justify-between gap-4">
                 <div>

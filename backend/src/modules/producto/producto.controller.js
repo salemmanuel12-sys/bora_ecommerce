@@ -14,7 +14,7 @@ async function listProductos(req, res, next) {
       limit: req.query.limit,
       search: req.query.search,
       includeInactive: req.query.include_inactive,
-      subcategoriaId: req.query.subcategoriaId,
+      categoriaId: req.query.categoriaId ?? req.query.subcategoriaId,
       categoria: req.query.categoria,
     });
 
@@ -35,7 +35,7 @@ async function listPublicProductos(req, res, next) {
       limit: req.query.limit,
       search: req.query.search,
       includeInactive: false,
-      subcategoriaId: req.query.subcategoriaId,
+      categoriaId: req.query.categoriaId ?? req.query.subcategoriaId,
       categoria: req.query.categoria,
     });
 
@@ -80,13 +80,18 @@ async function createProducto(req, res, next) {
     assertSuperAdmin(req);
 
     const producto = await productoService.createProducto({
-      subcategoriaId: req.body.subcategoriaId,
+      categoriaId: req.body.categoriaId ?? req.body.subcategoriaId,
       name: req.body.name,
       description: req.body.description,
       price: req.body.price,
       stock: req.body.stock,
+      peso: req.body.peso,
+      alto: req.body.alto,
+      ancho: req.body.ancho,
+      largo: req.body.largo,
       sku: req.body.sku,
       status: req.body.status,
+      atributos: req.body.atributos,
     });
 
     return res.status(201).json({
@@ -105,13 +110,18 @@ async function updateProducto(req, res, next) {
 
     const producto = await productoService.updateProducto({
       productoId: req.params.productoId,
-      subcategoriaId: req.body.subcategoriaId,
+      categoriaId: req.body.categoriaId ?? req.body.subcategoriaId,
       name: req.body.name,
       description: req.body.description,
       price: req.body.price,
       stock: req.body.stock,
+      peso: req.body.peso,
+      alto: req.body.alto,
+      ancho: req.body.ancho,
+      largo: req.body.largo,
       sku: req.body.sku,
       status: req.body.status,
+      atributos: req.body.atributos,
     });
 
     return res.status(200).json({

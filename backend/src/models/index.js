@@ -31,8 +31,10 @@ function initModels(sequelize) {
   db.AdminResetCode = require('./AdminResetCode')(sequelize);
 
   db.Categoria = require('./categoria.model')(sequelize);
-  db.Subcategoria = require('./subcategoria.model')(sequelize);
   db.Producto = require('./producto.model')(sequelize);
+  db.Atributo = require('./atributo.model')(sequelize);
+  db.AtributoValor = require('./atributoValor.model')(sequelize);
+  db.ProductoAtributo = require('./productoAtributo.model')(sequelize);
   db.ProductoImagen = require('./productoImagen.model')(sequelize);
   db.ProductoOpinion = require('./productoOpinion.model')(sequelize);
   db.Banner = require('./banner.model')(sequelize);
@@ -66,8 +68,10 @@ function initModels(sequelize) {
     RolSubmodulo,
     RolAccion,
     Categoria,
-    Subcategoria,
     Producto,
+    Atributo,
+    AtributoValor,
+    ProductoAtributo,
     ProductoImagen,
     ProductoOpinion,
     Usuario,
@@ -99,11 +103,16 @@ function initModels(sequelize) {
   });
 
   // CATEGORÍAS
-  Subcategoria.belongsTo(Categoria, { foreignKey: 'categoriaId', as: 'categoria' });
-  Categoria.hasMany(Subcategoria, { foreignKey: 'categoriaId', as: 'subcategorias' });
+  Producto.belongsTo(Categoria, { foreignKey: 'categoriaId', as: 'categoria' });
+  Categoria.hasMany(Producto, { foreignKey: 'categoriaId', as: 'productos' });
 
-  Producto.belongsTo(Subcategoria, { foreignKey: 'subcategoriaId', as: 'subcategoria' });
-  Subcategoria.hasMany(Producto, { foreignKey: 'subcategoriaId', as: 'productos' });
+  Atributo.hasMany(AtributoValor, { foreignKey: 'atributoId', as: 'valores' });
+  AtributoValor.belongsTo(Atributo, { foreignKey: 'atributoId', as: 'atributo' });
+
+  Producto.hasMany(ProductoAtributo, { foreignKey: 'productoId', as: 'atributosAsignaciones' });
+  ProductoAtributo.belongsTo(Producto, { foreignKey: 'productoId', as: 'producto' });
+  ProductoAtributo.belongsTo(Atributo, { foreignKey: 'atributoId', as: 'atributo' });
+  ProductoAtributo.belongsTo(AtributoValor, { foreignKey: 'valorId', as: 'valor' });
 
   Producto.hasMany(ProductoImagen, { foreignKey: 'productoId', as: 'imagenes' });
   ProductoImagen.belongsTo(Producto, { foreignKey: 'productoId', as: 'producto' });

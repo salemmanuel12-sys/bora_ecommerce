@@ -7,6 +7,25 @@ function assertSuperAdmin(req) {
   }
 }
 
+async function listPublicCategorias(req, res, next) {
+  try {
+    const result = await categoriaService.listCategorias({
+      page: req.query.page,
+      limit: req.query.limit,
+      search: req.query.search,
+      includeInactive: false,
+    });
+
+    return res.status(200).json({
+      ok: true,
+      data: result.categorias,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function listCategorias(req, res, next) {
   try {
     const result = await categoriaService.listCategorias({
@@ -46,6 +65,9 @@ async function createCategoria(req, res, next) {
     const categoria = await categoriaService.createCategoria({
       name: req.body.name,
       description: req.body.description,
+      imageUrl: req.file
+        ? `categorias/${req.file.filename}`
+        : (req.body?.imageUrl === undefined ? undefined : req.body.imageUrl),
       status: req.body.status,
     });
 
@@ -67,6 +89,9 @@ async function updateCategoria(req, res, next) {
       categoriaId: req.params.categoriaId,
       name: req.body.name,
       description: req.body.description,
+      imageUrl: req.file
+        ? `categorias/${req.file.filename}`
+        : (req.body?.imageUrl === undefined ? undefined : req.body.imageUrl),
       status: req.body.status,
     });
 
@@ -117,6 +142,7 @@ async function deleteCategoria(req, res, next) {
 }
 
 module.exports = {
+  listPublicCategorias,
   listCategorias,
   getCategoria,
   createCategoria,

@@ -23,10 +23,6 @@ const ADMIN_ROUTES = {
     { label: "Catálogos", to: "/admin/catalogos" },
     { label: "Categorías" },
   ],
-  "/admin/catalogos/subcategorias": [
-    { label: "Catálogos", to: "/admin/catalogos" },
-    { label: "Subcategorías" },
-  ],
   "/admin/catalogos/productos": [
     { label: "Catálogos", to: "/admin/catalogos" },
     { label: "Productos" },

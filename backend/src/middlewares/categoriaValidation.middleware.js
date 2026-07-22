@@ -60,6 +60,7 @@ function validateCategoriaIdParam(req, _res, next) {
 function validateCreateCategoria(req, _res, next) {
   const name = sanitizeText(req.body?.name || '', 120);
   const description = sanitizeText(req.body?.description || '', 255) || null;
+  const imageUrl = sanitizeText(req.body?.imageUrl || req.body?.image || '', 500) || null;
   const status = parseOptionalStatus(req.body?.status);
 
   if (!name) {
@@ -76,6 +77,7 @@ function validateCreateCategoria(req, _res, next) {
 
   req.body.name = name;
   req.body.description = description;
+  req.body.imageUrl = imageUrl;
   req.body.status = status === null ? true : status;
 
   return next();
@@ -84,6 +86,7 @@ function validateCreateCategoria(req, _res, next) {
 function validateUpdateCategoria(req, _res, next) {
   const name = sanitizeText(req.body?.name || '', 120);
   const description = sanitizeText(req.body?.description || '', 255) || null;
+  const imageUrl = sanitizeText(req.body?.imageUrl || req.body?.image || '', 500) || null;
   const status = parseOptionalStatus(req.body?.status);
 
   if (!name) {
@@ -100,6 +103,10 @@ function validateUpdateCategoria(req, _res, next) {
 
   req.body.name = name;
   req.body.description = description;
+
+  if (imageUrl !== null || req.body?.imageUrl !== undefined || req.body?.image !== undefined) {
+    req.body.imageUrl = imageUrl;
+  }
 
   if (status !== null) {
     req.body.status = status;

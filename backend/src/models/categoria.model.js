@@ -24,6 +24,10 @@ module.exports = (sequelize) => {
         type: DataTypes.STRING(255),
         allowNull: true,
       },
+      imageUrl: {
+        type: DataTypes.STRING(500),
+        allowNull: true,
+      },
       status: {
         type: DataTypes.BOOLEAN,
         allowNull: false,

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
-import { Gem, Search, SlidersHorizontal, Heart, ShoppingBag, Cookie } from "lucide-react";
+import { Gem, Search, SlidersHorizontal, Heart, ShoppingBag, Cookie, ChevronLeft, ChevronRight } from "lucide-react";
 import { addGuestItemFromProducto, getGuestCartCount } from "../../lib/guestCart";
 import NavbarPublic from "../../components/usuarios/NavbarPublic";
 import BannerSlider from "../../components/usuarios/BannerSlider";
@@ -43,11 +43,59 @@ function ProductPlaceholder({ name }) {
   );
 }
 
+function getCategoryImageUrl(categoria) {
+  const imageUrl = categoria?.imageUrl;
+  if (!imageUrl) {
+    return null;
+  }
+
+  const normalized = String(imageUrl).replace(/^\/+/, "");
+  return `${STATIC_BASE_URL}/uploads/${normalized}`;
+}
+
+function CategoryCard({ categoria, active, onSelect }) {
+  const image = getCategoryImageUrl(categoria);
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(categoria)}
+      className={`group overflow-hidden rounded-[2rem] border bg-white text-left shadow-[0_24px_70px_-44px_rgba(70,40,160,0.35)] transition hover:-translate-y-1 hover:shadow-[0_32px_80px_-38px_rgba(70,40,160,0.45)] ${active ? "border-[#6a40d8]" : "border-[#ece7f7]"}`}
+    >
+      <div className="relative h-56 overflow-hidden">
+        {image ? (
+          <img src={image} alt={categoria.name} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full items-center justify-center bg-[linear-gradient(135deg,#f8f4ff_0%,#edfdfa_100%)] text-[#231f20]">
+            <div className="text-center">
+              <Gem size={26} className="mx-auto text-[#6a40d8]" />
+              <span className="mt-3 block px-6 text-base tracking-wide" style={{ fontFamily: '"Cormorant Garamond", "Times New Roman", serif' }}>
+                {categoria.name}
+              </span>
+            </div>
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#1e1730]/90 via-[#1e1730]/20 to-transparent" />
+        <div className="absolute bottom-5 left-5 right-5">
+          <p className="text-[11px] uppercase tracking-[0.32em] text-[#f3e8ff]">Colección</p>
+          <h3 className="mt-2 text-[1.5rem] text-white" style={{ fontFamily: '"Cormorant Garamond", "Times New Roman", serif' }}>
+            {categoria.name}
+          </h3>
+        </div>
+      </div>
+      <div className="flex items-center justify-between p-4">
+        <p className="text-sm text-[#5e5b69]">{categoria.description || "Piezas exclusivas de diseño contemporáneo."}</p>
+        <span className="text-sm font-semibold text-[#6a40d8]">{active ? "Explorando" : "Ver colección"}</span>
+      </div>
+    </button>
+  );
+}
+
 function ProductCard({ producto, onAddToCart, adding }) {
   const image = getImagenUrl(producto);
   const stock = Number(producto.stock || 0);
-  const categoria = producto.subcategoria?.categoria?.name || "Colección";
-  const subcategoria = producto.subcategoria?.name || "Pieza exclusiva";
+  const categoria = producto.categoria?.name || "Colección";
+  const subcategoria = producto.categoria?.name || "Pieza exclusiva";
 
   return (
     <article className="group overflow-hidden rounded-[2rem] border border-[#e7e3f4] bg-white shadow-[0_28px_70px_-42px_rgba(113,70,196,0.35)] transition duration-300 hover:-translate-y-1.5 hover:shadow-[0_32px_80px_-40px_rgba(113,70,196,0.45)]">
@@ -120,11 +168,16 @@ function UsuariosHome() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState("");
-  const [categoriaActiva, setCategoriaActiva] = useState("Todas");
+  const [selectedCategoria, setSelectedCategoria] = useState(null);
   const [sortBy, setSortBy] = useState("featured");
   const [cartCount, setCartCount] = useState(0);
   const [addingProductId, setAddingProductId] = useState(null);
   const [showCookieBanner, setShowCookieBanner] = useState(false);
+  const [categorias, setCategorias] = useState([]);
+  const [categoriasPagination, setCategoriasPagination] = useState({ total: 0, page: 1, limit: 6, pages: 1 });
+  const [categoryPage, setCategoryPage] = useState(1);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState("");
 
   useEffect(() => {
     setCurrentPage(1);
@@ -132,10 +185,44 @@ function UsuariosHome() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [categoriaActiva]);
+  }, [selectedCategoria]);
+
+  useEffect(() => {
+    const loadCategorias = async () => {
+      setCategoriesLoading(true);
+      setCategoriesError("");
+      try {
+        const response = await axios.get(`${API_BASE_URL}/catalogo/categorias/public`, {
+          params: {
+            page: categoryPage,
+            limit: 6,
+          },
+        });
+        const rows = response?.data?.data;
+        const nextCategorias = Array.isArray(rows) ? rows : [];
+        setCategorias(nextCategorias);
+        setCategoriasPagination(response?.data?.pagination || { total: 0, page: categoryPage, limit: 6, pages: 1 });
+      } catch (_error) {
+        setCategorias([]);
+        setCategoriasPagination({ total: 0, page: 1, limit: 6, pages: 1 });
+        setCategoriesError("No se pudieron cargar las colecciones.");
+      } finally {
+        setCategoriesLoading(false);
+      }
+    };
+
+    loadCategorias();
+  }, [categoryPage]);
 
   useEffect(() => {
     const loadProductos = async () => {
+      if (!selectedCategoria) {
+        setProductos([]);
+        setPagination({ total: 0, page: 1, limit, pages: 1 });
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setLoadError("");
       try {
@@ -144,7 +231,7 @@ function UsuariosHome() {
             page: currentPage,
             limit,
             search: search.trim() || undefined,
-            categoria: categoriaActiva !== "Todas" ? categoriaActiva : undefined,
+            categoriaId: selectedCategoria.id,
           },
         });
         const rows = response?.data?.data;
@@ -160,7 +247,7 @@ function UsuariosHome() {
     };
 
     loadProductos();
-  }, [currentPage, limit, search, categoriaActiva]);
+  }, [currentPage, limit, search, selectedCategoria]);
 
   useEffect(() => {
     setCartCount(getGuestCartCount());
@@ -188,22 +275,8 @@ function UsuariosHome() {
     }
   };
 
-  const categorias = useMemo(() => {
-    const unique = new Set(
-      productos
-        .map((item) => item.subcategoria?.categoria?.name || item.subcategoria?.name)
-        .filter(Boolean)
-    );
-    return ["Todas", ...Array.from(unique)];
-  }, [productos]);
-
   const productosFiltrados = useMemo(() => {
-    let items = productos.filter((item) => {
-      const categoria = item.subcategoria?.categoria?.name || item.subcategoria?.name || "";
-      const matchCategoria = categoriaActiva === "Todas" || categoria === categoriaActiva;
-
-      return matchCategoria;
-    });
+    let items = [...productos];
 
     if (sortBy === "price-asc") {
       items = [...items].sort((a, b) => Number(a.price || 0) - Number(b.price || 0));
@@ -218,9 +291,31 @@ function UsuariosHome() {
     }
 
     return items;
-  }, [productos, search, categoriaActiva, sortBy]);
+  }, [productos, sortBy]);
 
-  const headerCategorias = categorias.filter((categoria) => categoria !== "Todas").slice(0, 4);
+  const headerCategorias = categorias.slice(0, 4).map((categoria) => categoria.name);
+
+  const handleSelectCategory = (value) => {
+    if (value === null || value === "") {
+      setSelectedCategoria(null);
+      return;
+    }
+
+    if (typeof value === "object" && value !== null) {
+      setSelectedCategoria(value);
+      return;
+    }
+
+    const numericValue = Number(value);
+    if (Number.isInteger(numericValue) && numericValue > 0) {
+      const matchById = categorias.find((categoria) => Number(categoria.id) === numericValue);
+      setSelectedCategoria(matchById || null);
+      return;
+    }
+
+    const match = categorias.find((categoria) => categoria.name === value || Number(categoria.id) === Number(value));
+    setSelectedCategoria(match || null);
+  };
 
   const acceptCookies = () => {
     localStorage.setItem(
@@ -247,64 +342,133 @@ function UsuariosHome() {
         active="catalogo"
         cartCount={cartCount}
         categories={headerCategorias}
-        onSelectCategory={setCategoriaActiva}
+        onSelectCategory={handleSelectCategory}
         searchValue={search}
         onSearchChange={setSearch}
       />
 
       <BannerSlider />
 
-      <section className="mx-auto mt-8 max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="rounded-[2rem] border border-[#ebe6f7] bg-white/88 p-4 shadow-[0_28px_70px_-50px_rgba(70,40,160,0.3)] backdrop-blur sm:p-6">
-          <div className="grid gap-3 md:grid-cols-[1.5fr_1fr_auto]">
-            <label className="relative block">
-              <Search size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#6a40d8]" />
-              <input
-                type="text"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Busca anillos, collares, aretes..."
-                className="w-full rounded-xl border border-[#ebe6f7] bg-white px-10 py-3 text-sm text-[#231f20] outline-none ring-[#6a40d8] transition focus:ring"
-              />
-            </label>
+      {!selectedCategoria && (
+        <section className="mx-auto mt-8 max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="rounded-[2rem] border border-[#ebe6f7] bg-white/88 p-4 shadow-[0_28px_70px_-50px_rgba(70,40,160,0.3)] backdrop-blur sm:p-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-sm uppercase tracking-[0.32em] text-[#7a52de]">Colecciones de lujo</p>
+                <h2 className="mt-2 text-[2rem] text-[#231f20]" style={{ fontFamily: '"Cormorant Garamond", "Times New Roman", serif' }}>
+                  Descubre piezas exclusivas por colección
+                </h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5e5b69]">
+                  Exploramos las colecciones más selectas de joyería fina, desde piezas de diario hasta diseños de alta ceremonia.
+                </p>
+              </div>
+            </div>
 
-            <select
-              value={sortBy}
-              onChange={(event) => setSortBy(event.target.value)}
-              className="rounded-xl border border-[#ebe6f7] bg-white px-3 py-3 text-sm text-[#231f20] outline-none ring-[#6a40d8] transition focus:ring"
+            {categoriesLoading ? (
+              <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div key={index} className="h-72 animate-pulse rounded-[2rem] border border-[#ece7f7] bg-white/80" />
+                ))}
+              </div>
+            ) : categoriesError ? (
+              <div className="mt-6 rounded-[1.5rem] border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700">
+                {categoriesError}
+              </div>
+            ) : (
+              <>
+                <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                  {categorias.map((categoria) => (
+                    <CategoryCard
+                      key={categoria.id}
+                      categoria={categoria}
+                      active={false}
+                      onSelect={handleSelectCategory}
+                    />
+                  ))}
+                </div>
+
+                <div className="mt-6 flex flex-col items-center justify-between gap-3 rounded-[1.5rem] border border-[#ece7f7] bg-[#fcfbff] px-4 py-3 text-sm sm:flex-row">
+                  <p className="text-[#5e5b69]">
+                    Página {Number(categoriasPagination.page || 1)} de {Math.max(1, Number(categoriasPagination.pages || 1))}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCategoryPage((prev) => Math.max(1, prev - 1))}
+                      disabled={categoriesLoading || Number(categoriasPagination.page || 1) <= 1}
+                      className="rounded-full border border-[#e6e2f5] bg-white p-2 text-[#4f4b5f] transition hover:bg-[#f8f4ff] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCategoryPage((prev) => Math.min(Math.max(1, Number(categoriasPagination.pages || 1)), prev + 1))}
+                      disabled={categoriesLoading || Number(categoriasPagination.page || 1) >= Math.max(1, Number(categoriasPagination.pages || 1))}
+                      className="rounded-full border border-[#e6e2f5] bg-white p-2 text-[#4f4b5f] transition hover:bg-[#f8f4ff] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </section>
+      )}
+
+      {selectedCategoria && (
+        <section className="mx-auto mt-8 max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-6 flex flex-col gap-3 rounded-[2rem] border border-[#ece7f7] bg-white/80 p-6 shadow-[0_26px_70px_-44px_rgba(70,40,160,0.28)] sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-sm uppercase tracking-[0.32em] text-[#7a52de]">Colección seleccionada</p>
+              <h3 className="mt-2 text-[1.8rem] text-[#231f20]" style={{ fontFamily: '"Cormorant Garamond", "Times New Roman", serif' }}>
+                {selectedCategoria.name}
+              </h3>
+              <p className="mt-2 text-sm text-[#5e5b69]">
+                {selectedCategoria.description || "Explora esta colección especial y encuentra tus piezas favoritas."}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedCategoria(null)}
+              className="rounded-full border border-[#e7d8fb] bg-[#faf7ff] px-4 py-2 text-sm font-semibold text-[#6a40d8] transition hover:bg-[#f3ebff]"
             >
-              <option value="featured">Orden destacado</option>
-              <option value="price-asc">Precio: menor a mayor</option>
-              <option value="price-desc">Precio: mayor a menor</option>
-              <option value="name">Nombre A-Z</option>
-            </select>
+              Regresar a colecciones
+            </button>
+          </div>
 
-            <div className="inline-flex items-center gap-2 rounded-xl border border-[#daf8f6] bg-[#f1fffe] px-3 py-3 text-sm text-[#169b95]">
-              <SlidersHorizontal size={16} />
-              {Number(pagination.total || 0)} piezas
+          <div className="rounded-[2rem] border border-[#ebe6f7] bg-white/88 p-4 shadow-[0_28px_70px_-50px_rgba(70,40,160,0.3)] backdrop-blur sm:p-6">
+            <div className="grid gap-3 md:grid-cols-[1.5fr_1fr_auto]">
+              <label className="relative block">
+                <Search size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#6a40d8]" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Busca por nombre..."
+                  className="w-full rounded-xl border border-[#ebe6f7] bg-white px-10 py-3 text-sm text-[#231f20] outline-none ring-[#6a40d8] transition focus:ring"
+                />
+              </label>
+
+              <select
+                value={sortBy}
+                onChange={(event) => setSortBy(event.target.value)}
+                className="rounded-xl border border-[#ebe6f7] bg-white px-3 py-3 text-sm text-[#231f20] outline-none ring-[#6a40d8] transition focus:ring"
+              >
+                <option value="featured">Orden destacado</option>
+                <option value="price-asc">Precio: menor a mayor</option>
+                <option value="price-desc">Precio: mayor a menor</option>
+                <option value="name">Nombre A-Z</option>
+              </select>
+
+              <div className="inline-flex items-center gap-2 rounded-xl border border-[#daf8f6] bg-[#f1fffe] px-3 py-3 text-sm text-[#169b95]">
+                <SlidersHorizontal size={16} />
+                {Number(pagination.total || 0)} piezas
+              </div>
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            {categorias.map((categoria) => {
-              const active = categoria === categoriaActiva;
-              return (
-                <button
-                  key={categoria}
-                  type="button"
-                  onClick={() => setCategoriaActiva(categoria)}
-                  className={`rounded-full border px-4 py-2 text-sm transition ${active ? "border-[#6a40d8] bg-[#6a40d8] text-white shadow-[0_14px_24px_-18px_rgba(106,64,216,0.8)]" : "border-[#ebe6f7] bg-white text-[#555261] hover:border-[#cdbcf5] hover:bg-[#faf7ff]"}`}
-                >
-                  {categoria}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto mt-8 max-w-7xl px-4 sm:px-6 lg:px-8">
-        {loading ? (
+          {loading ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, index) => (
               <div key={index} className="h-[440px] animate-pulse rounded-[2rem] border border-[#ece7f7] bg-white/80" />
@@ -363,6 +527,7 @@ function UsuariosHome() {
           </>
         )}
       </section>
+      )}
 
       <FooterUsuario catalogPath="/" catalogLabel="Catálogo" />
 

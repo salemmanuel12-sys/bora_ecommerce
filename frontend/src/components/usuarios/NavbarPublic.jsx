@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { CircleUserRound, Menu, Search, ShoppingCart, X } from "lucide-react";
+import { ChevronDown, CircleUserRound, Menu, Search, ShoppingCart, X } from "lucide-react";
 import boraLogo from "../../assets/logoBueno.png";
 
 function isActive(active, value) {
@@ -12,11 +12,13 @@ function NavbarPublic({
   active = "catalogo",
   categories = [],
   onSelectCategory,
+  catalogPath = "/",
   searchValue = "",
   onSearchChange,
   onSearchSubmit,
 }) {
   const [openMobileMenu, setOpenMobileMenu] = useState(false);
+  const [openCatalogMenu, setOpenCatalogMenu] = useState(false);
 
   const handleSubmit = (event) => {
     event.preventDefault();
@@ -48,22 +50,53 @@ function NavbarPublic({
           </Link>
 
           <div className="hidden gap-7 text-sm font-medium lg:flex">
-            {categories.map((categoria) => (
+            <div className="relative">
               <button
-                key={categoria}
                 type="button"
-                onClick={() => onSelectCategory?.(categoria)}
-                className="transition hover:text-[#6a40d8]"
+                onClick={() => setOpenCatalogMenu((prev) => !prev)}
+                className={`inline-flex items-center gap-1 transition hover:text-[#6a40d8] ${active === "catalogo" || openCatalogMenu ? "font-semibold text-[#6a40d8]" : ""}`}
               >
-                {categoria}
+                Catálogo
+                <ChevronDown size={14} />
               </button>
-            ))}
-            <Link
-              to="/"
-              className={isActive(active, "catalogo") ? "font-semibold text-[#6a40d8]" : "transition hover:text-[#6a40d8]"}
-            >
-              Catálogo
-            </Link>
+
+              {openCatalogMenu && (
+                <div className="absolute left-0 top-full z-20 mt-3 w-80 overflow-hidden rounded-2xl border border-[#ebe6f7] bg-white shadow-[0_30px_50px_-35px_rgba(70,40,160,0.45)]">
+                  <div className="border-b border-[#f0ebfa] px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9b24cf]">
+                      Categorías
+                    </p>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto p-2">
+                    {categories.slice(0, 12).map((categoria) => (
+                      <button
+                        key={categoria}
+                        type="button"
+                        onClick={() => {
+                          onSelectCategory?.(categoria);
+                          setOpenCatalogMenu(false);
+                        }}
+                        className="flex w-full items-center rounded-xl px-3 py-2 text-left text-sm text-[#2f2a42] transition hover:bg-[#faf7ff] hover:text-[#6a40d8]"
+                      >
+                        {categoria}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="border-t border-[#f0ebfa] p-2">
+                    <Link
+                      to={catalogPath}
+                      onClick={() => {
+                        onSelectCategory?.(null);
+                        setOpenCatalogMenu(false);
+                      }}
+                      className="block rounded-xl px-3 py-2 text-sm font-semibold text-[#6a40d8] transition hover:bg-[#faf7ff]"
+                    >
+                      Más
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
             <Link
               to="/nosotros"
               className={isActive(active, "nosotros") ? "font-semibold text-[#6a40d8]" : "transition hover:text-[#6a40d8]"}
@@ -152,28 +185,51 @@ function NavbarPublic({
             </form>
 
             <div className="grid gap-2 text-sm font-medium text-[#2f2a42]">
-              <Link to="/" onClick={() => setOpenMobileMenu(false)} className="rounded-lg px-3 py-2 hover:bg-[#faf7ff]">
-                Catálogo
-              </Link>
+              <div className="rounded-lg border border-[#f0ebfa] bg-[#faf7ff] px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => setOpenCatalogMenu((prev) => !prev)}
+                  className={`flex w-full items-center justify-between text-left font-medium ${active === "catalogo" || openCatalogMenu ? "text-[#6a40d8]" : "text-[#2f2a42]"}`}
+                >
+                  <span>Catálogo</span>
+                  <ChevronDown size={14} className={openCatalogMenu ? "rotate-180 transition-transform" : "transition-transform"} />
+                </button>
+                {openCatalogMenu && (
+                  <div className="mt-2 grid gap-1 border-t border-[#efe7fb] pt-2">
+                    {categories.slice(0, 12).map((categoria) => (
+                      <button
+                        key={categoria}
+                        type="button"
+                        onClick={() => {
+                          onSelectCategory?.(categoria);
+                          setOpenMobileMenu(false);
+                          setOpenCatalogMenu(false);
+                        }}
+                        className="rounded-lg px-2 py-2 text-left hover:bg-white"
+                      >
+                        {categoria}
+                      </button>
+                    ))}
+                    <Link
+                      to={catalogPath}
+                      onClick={() => {
+                        onSelectCategory?.(null);
+                        setOpenMobileMenu(false);
+                        setOpenCatalogMenu(false);
+                      }}
+                      className="rounded-lg px-2 py-2 font-semibold text-[#6a40d8] hover:bg-white"
+                    >
+                      Más
+                    </Link>
+                  </div>
+                )}
+              </div>
               <Link to="/nosotros" onClick={() => setOpenMobileMenu(false)} className="rounded-lg px-3 py-2 hover:bg-[#faf7ff]">
                 Nosotros
               </Link>
               <Link to="/contacto" onClick={() => setOpenMobileMenu(false)} className="rounded-lg px-3 py-2 hover:bg-[#faf7ff]">
                 Contacto
               </Link>
-              {categories.map((categoria) => (
-                <button
-                  key={categoria}
-                  type="button"
-                  onClick={() => {
-                    onSelectCategory?.(categoria);
-                    setOpenMobileMenu(false);
-                  }}
-                  className="rounded-lg px-3 py-2 text-left hover:bg-[#faf7ff]"
-                >
-                  {categoria}
-                </button>
-              ))}
             </div>
 
             <Link

@@ -17,11 +17,13 @@ export const categoriasService = {
   },
 
   create(data) {
-    return api.post("/admin/categorias", data);
+    const isFormData = data instanceof FormData;
+    return api.post("/admin/categorias", data, isFormData ? { headers: { "Content-Type": "multipart/form-data" } } : {});
   },
 
   update(id, data) {
-    return api.put(`/admin/categorias/${id}`, data);
+    const isFormData = data instanceof FormData;
+    return api.put(`/admin/categorias/${id}`, data, isFormData ? { headers: { "Content-Type": "multipart/form-data" } } : {});
   },
 
   updateStatus(id, status) {
@@ -75,7 +77,8 @@ export const productosService = {
     if (params.page) query.set("page", params.page);
     if (params.limit) query.set("limit", params.limit);
     if (params.search) query.set("search", params.search);
-    if (params.subcategoriaId) query.set("subcategoriaId", params.subcategoriaId);
+    if (params.categoriaId) query.set("categoriaId", params.categoriaId);
+    else if (params.subcategoriaId) query.set("subcategoriaId", params.subcategoriaId);
     if (params.include_inactive) query.set("include_inactive", "true");
     return api.get(`/admin/productos?${query.toString()}`);
   },

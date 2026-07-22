@@ -16,7 +16,7 @@ module.exports = (sequelize) => {
         allowNull: false,
         unique: true,
       },
-      subcategoriaId: {
+      categoriaId: {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
@@ -36,6 +36,22 @@ module.exports = (sequelize) => {
         type: DataTypes.INTEGER,
         allowNull: false,
         defaultValue: 0,
+      },
+      peso: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: true,
+      },
+      alto: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: true,
+      },
+      ancho: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: true,
+      },
+      largo: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: true,
       },
       sku: {
         type: DataTypes.STRING(100),

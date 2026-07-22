@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Tag, Layers, ShoppingBag } from "lucide-react";
+import { Tag, ShoppingBag } from "lucide-react";
 
 const modules = [
   {
@@ -11,16 +11,6 @@ const modules = [
     bg: "bg-sky-600/10",
     hoverBg: "group-hover:bg-sky-600",
     glow: "from-sky-500/10 to-cyan-500/10",
-  },
-  {
-    label: "Subcategorías",
-    description: "Organiza subcategorías dentro de cada categoría.",
-    icon: Layers,
-    path: "/admin/catalogos/subcategorias",
-    color: "text-indigo-600 dark:text-indigo-400",
-    bg: "bg-indigo-600/10",
-    hoverBg: "group-hover:bg-indigo-600",
-    glow: "from-indigo-500/10 to-purple-500/10",
   },
   {
     label: "Productos",

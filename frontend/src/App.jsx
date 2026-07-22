@@ -14,7 +14,6 @@ import AdminInvite from "./pages/administrador/gestionAdministradores/AdminInvit
 import AdminPasswordChanges from "./pages/administrador/gestionAdministradores/AdminPasswordChanges";
 import AdminCatalogos from "./pages/administrador/catalogos/AdminCatalogos";
 import AdminCategorias from "./pages/administrador/catalogos/AdminCategorias";
-import AdminSubcategorias from "./pages/administrador/catalogos/AdminSubcategorias";
 import AdminProductos from "./pages/administrador/catalogos/AdminProductos";
 import AdminPedidos from "./pages/administrador/pedidos/AdminPedidos";
 import AdminPedidosListado from "./pages/administrador/pedidos/AdminPedidosListado";
@@ -118,7 +117,6 @@ function App() {
         <Route path="permisos" element={<GestionPermisos />} />
         <Route path="catalogos" element={<AdminCatalogos />} />
         <Route path="catalogos/categorias" element={<AdminCategorias />} />
-        <Route path="catalogos/subcategorias" element={<AdminSubcategorias />} />
         <Route path="catalogos/productos" element={<AdminProductos />} />
         <Route path="gestion-usuarios" element={<AdminGestionUsuarios />} />
         <Route path="gestion-usuarios/usuarios" element={<AdminUsuarios />} />
