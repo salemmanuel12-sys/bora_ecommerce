@@ -47,6 +47,7 @@ function initModels(sequelize) {
   db.OrderItem = require('./orderItem.model')(sequelize);
 
   db.Address = require('./address.model')(sequelize);
+  db.EstadoMexico = require('./estadoMexico.model')(sequelize);
   db.Tarjeta = require('./tarjeta.model')(sequelize);
   db.Payment = require('./payment.model')(sequelize);
   db.Shipment = require('./shipment.model')(sequelize);
@@ -80,6 +81,7 @@ function initModels(sequelize) {
     Order,
     OrderItem,
     Address,
+    EstadoMexico,
     Tarjeta,
     Payment,
     Shipment,

@@ -6,6 +6,7 @@ const router = express.Router();
 
 router.use(usuarioAuthMiddleware);
 
+router.get('/estados', direccionController.listMexicanStates);
 router.get('/', direccionController.listAddresses);
 router.post('/', direccionController.createAddress);
 router.put('/:addressId', direccionController.updateAddress);

@@ -1,9 +1,17 @@
 import api from "./axios";
 
 export const pedidoService = {
-  async checkout({ shippingAddressId, paymentMethod, cardId, card }) {
+  async shippingQuotes({ shippingAddressId }) {
+    const response = await api.post('/pedidos/shipping-quotes', {
+      shippingAddressId,
+    });
+    return response.data?.data ?? response.data;
+  },
+
+  async checkout({ shippingAddressId, shippingProviderServiceId, paymentMethod, cardId, card }) {
     const response = await api.post("/pedidos/checkout", {
       shippingAddressId,
+      shippingProviderServiceId,
       paymentMethod,
       cardId,
       card,

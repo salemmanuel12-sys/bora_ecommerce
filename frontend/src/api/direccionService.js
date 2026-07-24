@@ -1,6 +1,11 @@
 import api from "./axios";
 
 export const direccionService = {
+  async listStates() {
+    const response = await api.get('/direcciones/estados');
+    return response.data?.data ?? [];
+  },
+
   async list() {
     const response = await api.get("/direcciones");
     return response.data?.data ?? [];

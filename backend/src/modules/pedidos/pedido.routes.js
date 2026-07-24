@@ -6,6 +6,7 @@ const router = express.Router();
 
 router.use(usuarioAuthMiddleware);
 
+router.post('/shipping-quotes', pedidoController.shippingQuotes);
 router.post('/checkout', pedidoController.checkout);
 router.get('/', pedidoController.listOrders);
 router.get('/:orderId', pedidoController.getOrder);

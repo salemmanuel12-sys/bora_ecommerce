@@ -1,5 +1,14 @@
 const direccionService = require('./direccion.service');
 
+async function listMexicanStates(_req, res, next) {
+  try {
+    const states = await direccionService.listMexicanStates();
+    return res.status(200).json({ ok: true, data: states });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function listAddresses(req, res, next) {
   try {
     const addresses = await direccionService.listAddresses(req.usuario.id);
@@ -11,7 +20,10 @@ async function listAddresses(req, res, next) {
 
 async function createAddress(req, res, next) {
   try {
-    const address = await direccionService.createAddress(req.usuario.id, req.body);
+    const address = await direccionService.createAddress(req.usuario.id, req.body, {
+      email: req.usuario?.email || '',
+      nombre: req.usuario?.nombre || '',
+    });
     return res.status(201).json({
       ok: true,
       message: 'Dirección creada correctamente.',
@@ -48,4 +60,4 @@ async function deleteAddress(req, res, next) {
   }
 }
 
-module.exports = { listAddresses, createAddress, updateAddress, deleteAddress };
+module.exports = { listMexicanStates, listAddresses, createAddress, updateAddress, deleteAddress };

@@ -1,9 +1,24 @@
 const pedidoService = require('./pedido.service');
 
+async function shippingQuotes(req, res, next) {
+  try {
+    const quotes = await pedidoService.shippingQuotes(req.usuario.id, {
+      shippingAddressId: req.body.shippingAddressId,
+    });
+    return res.status(200).json({
+      ok: true,
+      data: quotes,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function checkout(req, res, next) {
   try {
     const order = await pedidoService.checkout(req.usuario.id, {
       shippingAddressId: req.body.shippingAddressId,
+      shippingProviderServiceId: req.body.shippingProviderServiceId,
       paymentMethod: req.body.paymentMethod,
       cardId: req.body.cardId,
       card: req.body.card,
@@ -89,4 +104,4 @@ async function adminGet(req, res, next) {
   }
 }
 
-module.exports = { checkout, listOrders, getOrder, cancelOrder, adminList, adminGet };
+module.exports = { shippingQuotes, checkout, listOrders, getOrder, cancelOrder, adminList, adminGet };

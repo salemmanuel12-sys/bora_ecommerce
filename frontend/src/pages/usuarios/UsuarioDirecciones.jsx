@@ -13,6 +13,7 @@ const EMPTY_FORM = {
   street: "",
   city: "",
   state: "",
+  stateCode: "",
   postalCode: "",
   country: "Mexico",
   references: "",
@@ -27,6 +28,7 @@ function UsuarioDirecciones() {
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [states, setStates] = useState([]);
 
   useEffect(() => {
     if (authLoading || !user) {
@@ -48,6 +50,34 @@ function UsuarioDirecciones() {
     loadAddresses();
   }, [authLoading, user]);
 
+  useEffect(() => {
+    if (authLoading || !user) {
+      return;
+    }
+
+    const loadStates = async () => {
+      try {
+        const rows = await direccionService.listStates();
+        setStates(Array.isArray(rows) ? rows : []);
+      } catch {
+        setStates([]);
+      }
+    };
+
+    loadStates();
+  }, [authLoading, user]);
+
+  useEffect(() => {
+    if (!editingId || form.stateCode || !form.state || states.length === 0) {
+      return;
+    }
+
+    const matched = states.find((item) => item.name === form.state);
+    if (matched?.code) {
+      setForm((prev) => ({ ...prev, stateCode: matched.code }));
+    }
+  }, [editingId, form.state, form.stateCode, states]);
+
   if (authLoading) {
     return null;
   }
@@ -59,6 +89,17 @@ function UsuarioDirecciones() {
 
   const handleChange = (event) => {
     const { name, value } = event.target;
+
+    if (name === "stateCode") {
+      const selected = states.find((item) => item.code === value);
+      setForm((prev) => ({
+        ...prev,
+        stateCode: value,
+        state: selected?.name || "",
+      }));
+      return;
+    }
+
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -75,6 +116,10 @@ function UsuarioDirecciones() {
       street: address.street || "",
       city: address.city || "",
       state: address.state || "",
+      stateCode:
+        address.stateCode ||
+        states.find((item) => item.name === address.state)?.code ||
+        "",
       postalCode: address.postalCode || "",
       country: address.country || "Mexico",
       references: address.references || "",
@@ -82,7 +127,7 @@ function UsuarioDirecciones() {
   };
 
   const validateForm = () => {
-    const required = ["fullName", "phone", "street", "city", "state", "postalCode"];
+    const required = ["fullName", "phone", "street", "city", "stateCode", "postalCode"];
     return !required.some((field) => !String(form[field] || "").trim());
   };
 
@@ -101,6 +146,7 @@ function UsuarioDirecciones() {
         phone: form.phone.trim(),
         street: form.street.trim(),
         city: form.city.trim(),
+        stateCode: form.stateCode.trim(),
         state: form.state.trim(),
         postalCode: form.postalCode.trim(),
         country: (form.country || "Mexico").trim(),
@@ -234,7 +280,19 @@ function UsuarioDirecciones() {
 
               <div className="grid grid-cols-2 gap-2">
                 <input name="city" value={form.city} onChange={handleChange} placeholder="Ciudad" className="w-full rounded-xl border border-[#e7d8fb] px-3 py-2.5 text-sm" />
-                <input name="state" value={form.state} onChange={handleChange} placeholder="Estado" className="w-full rounded-xl border border-[#e7d8fb] px-3 py-2.5 text-sm" />
+                <select
+                  name="stateCode"
+                  value={form.stateCode}
+                  onChange={handleChange}
+                  className="w-full rounded-xl border border-[#e7d8fb] px-3 py-2.5 text-sm"
+                >
+                  <option value="">Selecciona estado</option>
+                  {states.map((state) => (
+                    <option key={state.code} value={state.code}>
+                      {state.name} ({state.code})
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-2">

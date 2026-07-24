@@ -34,6 +34,7 @@ const EMPTY_ADDRESS = {
   street: "",
   city: "",
   state: "",
+  stateCode: "",
   postalCode: "",
   country: "Mexico",
   references: "",
@@ -119,6 +120,11 @@ function Carrito() {
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
   const [newAddress, setNewAddress] = useState(EMPTY_ADDRESS);
+  const [states, setStates] = useState([]);
+  const [shippingQuotes, setShippingQuotes] = useState([]);
+  const [shippingPackage, setShippingPackage] = useState(null);
+  const [loadingShippingQuotes, setLoadingShippingQuotes] = useState(false);
+  const [selectedShippingProviderServiceId, setSelectedShippingProviderServiceId] = useState("");
 
   const [processingCheckout, setProcessingCheckout] = useState(false);
 
@@ -128,6 +134,14 @@ function Carrito() {
     () => (cart.items || []).reduce((acc, item) => acc + Number(item.price) * item.quantity, 0),
     [cart.items]
   );
+
+  const selectedShippingQuote = useMemo(
+    () => shippingQuotes.find((q) => String(q.providerServiceId) === String(selectedShippingProviderServiceId)) || null,
+    [shippingQuotes, selectedShippingProviderServiceId]
+  );
+
+  const shippingCost = Number(selectedShippingQuote?.cost || 0);
+  const grandTotal = Number((subtotal + shippingCost).toFixed(2));
 
   // Load cart
   useEffect(() => {
@@ -166,6 +180,50 @@ function Carrito() {
 
     loadAddresses();
   }, [authLoading, isAuthenticated]);
+
+  useEffect(() => {
+    if (authLoading || !isAuthenticated) return;
+
+    const loadStates = async () => {
+      try {
+        const rows = await direccionService.listStates();
+        setStates(Array.isArray(rows) ? rows : []);
+      } catch {
+        setStates([]);
+      }
+    };
+
+    loadStates();
+  }, [authLoading, isAuthenticated]);
+
+  useEffect(() => {
+    if (authLoading || !isAuthenticated || step !== 2 || !selectedAddressId) {
+      return;
+    }
+
+    const loadShippingQuotes = async () => {
+      try {
+        setLoadingShippingQuotes(true);
+        const result = await pedidoService.shippingQuotes({
+          shippingAddressId: Number(selectedAddressId),
+        });
+
+        const quotes = Array.isArray(result?.quotes) ? result.quotes : [];
+        setShippingQuotes(quotes);
+        setShippingPackage(result?.package || null);
+        setSelectedShippingProviderServiceId(quotes[0]?.providerServiceId ? String(quotes[0].providerServiceId) : "");
+      } catch (error) {
+        setShippingQuotes([]);
+        setShippingPackage(null);
+        setSelectedShippingProviderServiceId("");
+        toast.error(error?.response?.data?.message || "No se pudieron obtener cotizaciones de envio.");
+      } finally {
+        setLoadingShippingQuotes(false);
+      }
+    };
+
+    loadShippingQuotes();
+  }, [authLoading, isAuthenticated, step, selectedAddressId]);
 
   // ── Cart actions ──────────────────────────────────────────────────────────
   const updateQuantity = async (item, nextQty) => {
@@ -213,7 +271,7 @@ function Carrito() {
 
   // ── Address actions ───────────────────────────────────────────────────────
   const saveAddress = async () => {
-    const required = ["fullName", "phone", "street", "city", "state", "postalCode"];
+    const required = ["fullName", "phone", "street", "city", "stateCode", "postalCode"];
     if (required.some((f) => !String(newAddress[f] || "").trim())) {
       toast.error("Completa todos los campos requeridos.");
       return;
@@ -226,6 +284,7 @@ function Carrito() {
         phone: newAddress.phone.trim(),
         street: newAddress.street.trim(),
         city: newAddress.city.trim(),
+        stateCode: newAddress.stateCode.trim(),
         state: newAddress.state.trim(),
         postalCode: newAddress.postalCode.trim(),
         country: (newAddress.country || "Mexico").trim(),
@@ -250,10 +309,15 @@ function Carrito() {
       toast.error("Selecciona una dirección de envío.");
       return;
     }
+    if (!selectedShippingProviderServiceId) {
+      toast.error("Selecciona una paqueteria para continuar.");
+      return;
+    }
     try {
       setProcessingCheckout(true);
       const payload = {
         shippingAddressId: Number(selectedAddressId),
+        shippingProviderServiceId: String(selectedShippingProviderServiceId),
       };
 
       const order = await pedidoService.checkout(payload);
@@ -530,13 +594,26 @@ function Carrito() {
                         placeholder="Ciudad *"
                         className="w-full rounded-xl border border-[#e5dcfb] px-3 py-2.5 text-sm outline-none focus:border-[#9b24cf]"
                       />
-                      <input
-                        type="text"
-                        value={newAddress.state}
-                        onChange={(e) => setNewAddress((p) => ({ ...p, state: e.target.value }))}
-                        placeholder="Estado *"
+                      <select
+                        value={newAddress.stateCode}
+                        onChange={(e) => {
+                          const selectedCode = e.target.value;
+                          const selectedState = states.find((item) => item.code === selectedCode);
+                          setNewAddress((p) => ({
+                            ...p,
+                            stateCode: selectedCode,
+                            state: selectedState?.name || "",
+                          }));
+                        }}
                         className="w-full rounded-xl border border-[#e5dcfb] px-3 py-2.5 text-sm outline-none focus:border-[#9b24cf]"
-                      />
+                      >
+                        <option value="">Estado *</option>
+                        {states.map((state) => (
+                          <option key={state.code} value={state.code}>
+                            {state.name} ({state.code})
+                          </option>
+                        ))}
+                      </select>
                       <input
                         type="text"
                         value={newAddress.postalCode}
@@ -581,15 +658,69 @@ function Carrito() {
                   </div>
                 )}
 
+                <div className="mb-5 space-y-3 rounded-2xl border border-[#ebe6f7] bg-[#f9fbff] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b83a6]">
+                    Paqueteria (FedEx / DHL)
+                  </p>
+
+                  {loadingShippingQuotes ? (
+                    <div className="h-14 animate-pulse rounded-xl border border-[#e8ebf8] bg-white" />
+                  ) : shippingQuotes.length === 0 ? (
+                    <p className="text-sm text-[#5b5866]">No hay cotizaciones disponibles para esta direccion.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {shippingQuotes.map((quote) => (
+                        <label
+                          key={quote.providerServiceId}
+                          className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border p-3 transition ${
+                            String(selectedShippingProviderServiceId) === String(quote.providerServiceId)
+                              ? "border-[#6a40d8] bg-[#f5f1ff]"
+                              : "border-[#ebe6f7] bg-white hover:border-[#c9bef5]"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name="shippingQuote"
+                              value={String(quote.providerServiceId)}
+                              checked={String(selectedShippingProviderServiceId) === String(quote.providerServiceId)}
+                              onChange={() => setSelectedShippingProviderServiceId(String(quote.providerServiceId))}
+                              className="accent-[#6a40d8]"
+                            />
+                            <div>
+                              <p className="text-sm font-semibold text-[#231f20]">{quote.label}</p>
+                              {quote.eta ? <p className="text-xs text-[#5b5866]">Entrega estimada: {quote.eta}</p> : null}
+                            </div>
+                          </div>
+                          <p className="text-sm font-semibold text-[#231f20]">{formatCurrency(quote.cost)}</p>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+
+                  {shippingPackage ? (
+                    <p className="text-xs text-[#6f6a82]">
+                      Paquete estimado: {shippingPackage.length} x {shippingPackage.width} x {shippingPackage.height} cm · Peso facturable {shippingPackage.bill_weight} kg
+                    </p>
+                  ) : null}
+                </div>
+
                 {/* Order mini-summary */}
                 <div className="mb-5 flex items-center justify-between rounded-2xl bg-[#faf7ff] px-4 py-3 text-sm">
-                  <span className="text-[#5b5866]">{cart.itemCount} artículo(s)</span>
-                  <span
-                    className="text-xl font-semibold text-[#231f20]"
-                    style={{ fontFamily: '"Cormorant Garamond", "Times New Roman", serif' }}
-                  >
-                    {formatCurrency(subtotal)}
-                  </span>
+                  <div className="text-[#5b5866]">
+                    <p>{cart.itemCount} artículo(s)</p>
+                    <p>Subtotal: {formatCurrency(subtotal)}</p>
+                    <p>Envío: {formatCurrency(shippingCost)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs uppercase tracking-[0.18em] text-[#8b83a6]">Total</p>
+                    <span
+                      className="text-xl font-semibold text-[#231f20]"
+                      style={{ fontFamily: '"Cormorant Garamond", "Times New Roman", serif' }}
+                    >
+                      {formatCurrency(grandTotal)}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex gap-3">
@@ -603,7 +734,7 @@ function Carrito() {
                   <button
                     type="button"
                     onClick={handleCheckout}
-                    disabled={processingCheckout}
+                    disabled={processingCheckout || !selectedShippingProviderServiceId}
                     className="flex-1 rounded-xl bg-gradient-to-r from-[#6a40d8] via-[#9b24cf] to-[#38ddd6] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
                   >
                     {processingCheckout ? "Creando pedido..." : "Continuar a pagos"} <ChevronRight className="ml-1 inline" size={16} />
