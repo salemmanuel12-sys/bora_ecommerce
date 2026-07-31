@@ -17,6 +17,7 @@ import AdminCategorias from "./pages/administrador/catalogos/AdminCategorias";
 import AdminProductos from "./pages/administrador/catalogos/AdminProductos";
 import AdminPedidos from "./pages/administrador/pedidos/AdminPedidos";
 import AdminPedidosListado from "./pages/administrador/pedidos/AdminPedidosListado";
+import AdminPedidosPaquetes from "./pages/administrador/pedidos/AdminPedidosPaquetes";
 import AdminGestionUsuarios from "./pages/administrador/gestionUsuarios/AdminGestionUsuarios";
 import AdminUsuarios from "./pages/administrador/gestionUsuarios/AdminUsuarios";
 import AdminOpinionesModeracion from "./pages/administrador/gestionUsuarios/AdminOpinionesModeracion";
@@ -125,6 +126,7 @@ function App() {
         <Route path="anuncios/banners" element={<AdminBanners />} />
         <Route path="pedidos" element={<AdminPedidos />} />
         <Route path="pedidos/listado" element={<AdminPedidosListado />} />
+        <Route path="pedidos/paquetes" element={<AdminPedidosPaquetes />} />
       </Route>
 
       <Route path="*" element={<NotFound />} />

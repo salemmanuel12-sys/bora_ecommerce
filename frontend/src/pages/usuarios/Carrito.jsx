@@ -30,8 +30,11 @@ const STEPS = [
 
 const EMPTY_ADDRESS = {
   fullName: "",
+  addressTypeId: 2,
   phone: "",
   street: "",
+  extNumber: "",  
+  intNumber: "",
   city: "",
   state: "",
   stateCode: "",
@@ -119,11 +122,12 @@ function Carrito() {
   const [selectedAddressId, setSelectedAddressId] = useState("");
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
+  const [deletingAddressId, setDeletingAddressId] = useState(null);
   const [newAddress, setNewAddress] = useState(EMPTY_ADDRESS);
   const [states, setStates] = useState([]);
   const [shippingQuotes, setShippingQuotes] = useState([]);
-  const [shippingPackage, setShippingPackage] = useState(null);
   const [loadingShippingQuotes, setLoadingShippingQuotes] = useState(false);
+  const [selectedShippingProviderId, setSelectedShippingProviderId] = useState("");
   const [selectedShippingProviderServiceId, setSelectedShippingProviderServiceId] = useState("");
 
   const [processingCheckout, setProcessingCheckout] = useState(false);
@@ -136,8 +140,11 @@ function Carrito() {
   );
 
   const selectedShippingQuote = useMemo(
-    () => shippingQuotes.find((q) => String(q.providerServiceId) === String(selectedShippingProviderServiceId)) || null,
-    [shippingQuotes, selectedShippingProviderServiceId]
+    () => shippingQuotes.find(
+      (q) => String(q.providerServiceId) === String(selectedShippingProviderServiceId)
+        && String(q.providerId) === String(selectedShippingProviderId)
+    ) || null,
+    [shippingQuotes, selectedShippingProviderServiceId, selectedShippingProviderId]
   );
 
   const shippingCost = Number(selectedShippingQuote?.cost || 0);
@@ -210,11 +217,11 @@ function Carrito() {
 
         const quotes = Array.isArray(result?.quotes) ? result.quotes : [];
         setShippingQuotes(quotes);
-        setShippingPackage(result?.package || null);
+        setSelectedShippingProviderId(quotes[0]?.providerId ? String(quotes[0].providerId) : "");
         setSelectedShippingProviderServiceId(quotes[0]?.providerServiceId ? String(quotes[0].providerServiceId) : "");
       } catch (error) {
         setShippingQuotes([]);
-        setShippingPackage(null);
+        setSelectedShippingProviderId("");
         setSelectedShippingProviderServiceId("");
         toast.error(error?.response?.data?.message || "No se pudieron obtener cotizaciones de envio.");
       } finally {
@@ -271,7 +278,7 @@ function Carrito() {
 
   // ── Address actions ───────────────────────────────────────────────────────
   const saveAddress = async () => {
-    const required = ["fullName", "phone", "street", "city", "stateCode", "postalCode"];
+    const required = ["fullName", "addressTypeId", "phone", "street", "extNumber", "intNumber", "city", "stateCode", "postalCode"];
     if (required.some((f) => !String(newAddress[f] || "").trim())) {
       toast.error("Completa todos los campos requeridos.");
       return;
@@ -281,8 +288,11 @@ function Carrito() {
       const created = await direccionService.create({
         ...newAddress,
         fullName: newAddress.fullName.trim(),
+        addressTypeId: newAddress.addressTypeId,  
         phone: newAddress.phone.trim(),
         street: newAddress.street.trim(),
+        extNumber: newAddress.extNumber.trim(),
+        intNumber: newAddress.intNumber.trim(), 
         city: newAddress.city.trim(),
         stateCode: newAddress.stateCode.trim(),
         state: newAddress.state.trim(),
@@ -290,6 +300,8 @@ function Carrito() {
         country: (newAddress.country || "Mexico").trim(),
         references: newAddress.references?.trim() || "",
       });
+
+      console.log("Created address:", created);
       const next = [created, ...addresses];
       setAddresses(next);
       setSelectedAddressId(String(created.id));
@@ -303,6 +315,30 @@ function Carrito() {
     }
   };
 
+  const deleteAddress = async (addressId) => {
+    try {
+      setDeletingAddressId(addressId);
+      await direccionService.remove(addressId);
+
+      const nextAddresses = addresses.filter((item) => item.id !== addressId);
+      setAddresses(nextAddresses);
+
+      if (String(selectedAddressId) === String(addressId)) {
+        setSelectedAddressId(nextAddresses[0]?.id ? String(nextAddresses[0].id) : "");
+      }
+
+      if (nextAddresses.length === 0) {
+        setShowAddressForm(true);
+      }
+
+      toast.success("Dirección eliminada.");
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "No se pudo eliminar la dirección.");
+    } finally {
+      setDeletingAddressId(null);
+    }
+  };
+
   // ── Checkout ──────────────────────────────────────────────────────────────
   const handleCheckout = async () => {
     if (!selectedAddressId) {
@@ -313,10 +349,15 @@ function Carrito() {
       toast.error("Selecciona una paqueteria para continuar.");
       return;
     }
+    if (!selectedShippingProviderId) {
+      toast.error("Selecciona una paqueteria valida para continuar.");
+      return;
+    }
     try {
       setProcessingCheckout(true);
       const payload = {
         shippingAddressId: Number(selectedAddressId),
+        shippingProviderId: String(selectedShippingProviderId),
         shippingProviderServiceId: String(selectedShippingProviderServiceId),
       };
 
@@ -523,7 +564,7 @@ function Carrito() {
                       Mis direcciones
                     </p>
                     {addresses.map((address) => (
-                      <label
+                      <div
                         key={address.id}
                         className={`flex cursor-pointer items-start gap-3 rounded-2xl border-2 p-4 transition ${
                           String(selectedAddressId) === String(address.id)
@@ -531,24 +572,36 @@ function Carrito() {
                             : "border-[#ebe6f7] bg-white hover:border-[#c9bef5]"
                         }`}
                       >
-                        <input
-                          type="radio"
-                          name="address"
-                          value={String(address.id)}
-                          checked={String(selectedAddressId) === String(address.id)}
-                          onChange={() => setSelectedAddressId(String(address.id))}
-                          className="mt-0.5 accent-[#6a40d8]"
-                        />
-                        <div className="text-sm">
-                          <p className="font-semibold text-[#231f20]">{address.fullName}</p>
-                          <p className="text-[#5b5866]">
-                            {address.street}, {address.city}, {address.state} {address.postalCode}
-                          </p>
-                          {address.phone && (
-                            <p className="text-[#8b83a6]">Tel: {address.phone}</p>
-                          )}
-                        </div>
-                      </label>
+                        <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-3">
+                          <input
+                            type="radio"
+                            name="address"
+                            value={String(address.id)}
+                            checked={String(selectedAddressId) === String(address.id)}
+                            onChange={() => setSelectedAddressId(String(address.id))}
+                            className="mt-0.5 accent-[#6a40d8]"
+                          />
+                          <div className="text-sm">
+                            <p className="font-semibold text-[#231f20]">{address.fullName}</p>
+                            <p className="text-[#5b5866]">
+                              {address.street}, {address.city}, {address.state} {address.postalCode}
+                            </p>
+                            {address.phone && (
+                              <p className="text-[#8b83a6]">Tel: {address.phone}</p>
+                            )}
+                          </div>
+                        </label>
+
+                        <button
+                          type="button"
+                          onClick={() => deleteAddress(address.id)}
+                          disabled={deletingAddressId === address.id}
+                          className="rounded-lg border border-rose-200 p-2 text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
+                          aria-label="Eliminar dirección"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     ))}
                     <button
                       type="button"
@@ -587,6 +640,20 @@ function Carrito() {
                         placeholder="Calle y número *"
                         className="col-span-2 w-full rounded-xl border border-[#e5dcfb] px-3 py-2.5 text-sm outline-none focus:border-[#9b24cf]"
                       />
+                      <input
+                        type="text"
+                        value={newAddress.extNumber}
+                        onChange={(e) => setNewAddress((p) => ({ ...p, extNumber: e.target.value }))}
+                        placeholder="Número exterior *"
+                        className="w-full rounded-xl border border-[#e5dcfb] px-3 py-2.5 text-sm outline-none focus:border-[#9b24cf]"
+                      />
+                      <input
+                        type="text"
+                        value={newAddress.intNumber}
+                        onChange={(e) => setNewAddress((p) => ({ ...p, intNumber: e.target.value }))}
+                        placeholder="Número interior"
+                        className="w-full rounded-xl border border-[#e5dcfb] px-3 py-2.5 text-sm outline-none focus:border-[#9b24cf]"
+                      />  
                       <input
                         type="text"
                         value={newAddress.city}
@@ -671,9 +738,10 @@ function Carrito() {
                     <div className="space-y-2">
                       {shippingQuotes.map((quote) => (
                         <label
-                          key={quote.providerServiceId}
+                          key={quote.quoteKey || `${quote.providerId}:${quote.providerServiceId}`}
                           className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border p-3 transition ${
                             String(selectedShippingProviderServiceId) === String(quote.providerServiceId)
+                            && String(selectedShippingProviderId) === String(quote.providerId)
                               ? "border-[#6a40d8] bg-[#f5f1ff]"
                               : "border-[#ebe6f7] bg-white hover:border-[#c9bef5]"
                           }`}
@@ -682,27 +750,28 @@ function Carrito() {
                             <input
                               type="radio"
                               name="shippingQuote"
-                              value={String(quote.providerServiceId)}
-                              checked={String(selectedShippingProviderServiceId) === String(quote.providerServiceId)}
-                              onChange={() => setSelectedShippingProviderServiceId(String(quote.providerServiceId))}
+                              value={quote.quoteKey || `${quote.providerId}:${quote.providerServiceId}`}
+                              checked={
+                                String(selectedShippingProviderServiceId) === String(quote.providerServiceId)
+                                && String(selectedShippingProviderId) === String(quote.providerId)
+                              }
+                              onChange={() => {
+                                setSelectedShippingProviderId(String(quote.providerId));
+                                setSelectedShippingProviderServiceId(String(quote.providerServiceId));
+                              }}
                               className="accent-[#6a40d8]"
                             />
                             <div>
-                              <p className="text-sm font-semibold text-[#231f20]">{quote.label}</p>
-                              {quote.eta ? <p className="text-xs text-[#5b5866]">Entrega estimada: {quote.eta}</p> : null}
+                              <p className="text-sm font-semibold text-[#231f20]">Proveedor: {quote.provider || "N/A"}</p>
+                              <p className="text-xs text-[#5b5866]">Vía de transporte: {quote.viaTransport || "N/A"}</p>
+                              <p className="text-xs text-[#5b5866]">Fecha estimada: {quote.estimatedDate || "N/A"}</p>
                             </div>
                           </div>
-                          <p className="text-sm font-semibold text-[#231f20]">{formatCurrency(quote.cost)}</p>
+                          <p className="text-sm font-semibold text-[#231f20]">{formatCurrency(quote.total ?? quote.cost)}</p>
                         </label>
                       ))}
                     </div>
                   )}
-
-                  {shippingPackage ? (
-                    <p className="text-xs text-[#6f6a82]">
-                      Paquete estimado: {shippingPackage.length} x {shippingPackage.width} x {shippingPackage.height} cm · Peso facturable {shippingPackage.bill_weight} kg
-                    </p>
-                  ) : null}
                 </div>
 
                 {/* Order mini-summary */}

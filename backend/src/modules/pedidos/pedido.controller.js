@@ -18,6 +18,7 @@ async function checkout(req, res, next) {
   try {
     const order = await pedidoService.checkout(req.usuario.id, {
       shippingAddressId: req.body.shippingAddressId,
+      shippingProviderId: req.body.shippingProviderId,
       shippingProviderServiceId: req.body.shippingProviderServiceId,
       paymentMethod: req.body.paymentMethod,
       cardId: req.body.cardId,

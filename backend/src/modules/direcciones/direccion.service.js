@@ -1,5 +1,8 @@
 const { Address, EstadoMexico, sequelize } = require('../../models/loader');
-const { addAddress: addAddressToEnviatodo } = require('../../services/enviatodo.service');
+const {
+  addAddress: addAddressToEnviatodo,
+  deleteAddress: deleteAddressFromEnviatodo,
+} = require('../../services/enviatodo.service');
 const HttpError = require('../../utils/httpError');
 
 function sanitize(value = '', max = 255) {
@@ -19,7 +22,7 @@ function parseAddressTypeId(value) {
   if (Number.isInteger(parsed) && parsed > 0) {
     return parsed;
   }
-  return 1;
+  return 2;
 }
 
 function toBooleanString(value, fallback = 'false') {
@@ -36,6 +39,17 @@ function toBooleanString(value, fallback = 'false') {
     return 'true';
   }
   return 'false';
+}
+
+function extractEnviatodoAddressId(payload) {
+  if (!payload || typeof payload !== 'object') return null;
+
+  const directId = payload?.data?.address?.id ?? payload?.data?.id ?? payload?.address?.id ?? payload?.id;
+  if (directId !== undefined && directId !== null && String(directId).trim() !== '') {
+    return String(directId).trim();
+  }
+
+  return null;
 }
 
 async function resolveState(bodyState, bodyStateCode, transaction) {
@@ -65,18 +79,16 @@ async function resolveState(bodyState, bodyStateCode, transaction) {
   return byName;
 }
 
-function buildEnviatodoPayload({ userId, userEmail, address, stateCode, body }) {
+function buildEnviatodoPayload({ userEmail, address, stateCode, body }) {
   const email = sanitize(body.email || userEmail || '', 150);
   if (!email) {
     throw new HttpError(400, 'No se encontro email para registrar la direccion en Enviatodo.');
   }
 
-  const countryCode = sanitize(body.countryCode || body.country_code || 'MX', 2).toUpperCase() || 'MX';
   const reference =
     address.references || (body.reference ? sanitize(body.reference, 255) : '') || 'Sin referencia';
 
   return {
-    id: Number(userId),
     lat: sanitize(body.lat || '0', 30),
     lng: sanitize(body.lng || '0', 30),
     address_type_id: parseAddressTypeId(body.addressTypeId || body.address_type_id),
@@ -84,15 +96,15 @@ function buildEnviatodoPayload({ userId, userEmail, address, stateCode, body }) 
     email,
     telephone: address.phone,
     street: address.street,
-    ext_number: sanitize(body.extNumber || body.ext_number || 'S/N', 20),
-    int_number: sanitize(body.intNumber || body.int_number || '', 20),
+    ext_number: address.ext_number || sanitize(body.extNumber || body.ext_number || 'S/N', 20),
+    int_number: address.int_number || sanitize(body.intNumber || body.int_number || '', 20),
     zip_code: address.postalCode,
     suburb: sanitize(body.suburb || body.colonia || address.city, 120),
     municipality: sanitize(body.municipality || address.city, 120),
     town: sanitize(body.town || address.city, 120),
     state: address.state,
     state_code: stateCode,
-    country_code: countryCode,
+    country_code: 'MX',
     reference,
     default_addr: toBooleanString(body.defaultAddr ?? body.default_addr, 'false'),
   };
@@ -103,14 +115,18 @@ function toPublic(address) {
   return {
     id: raw.id,
     userId: raw.userId,
+    addressTypeId: parseAddressTypeId(raw.address_type_id),
     fullName: raw.fullName,
     phone: raw.phone,
     street: raw.street,
+    extNumber: raw.ext_number || null,  
+    intNumber: raw.int_number || null,
     city: raw.city,
     state: raw.state,
     stateCode: raw.stateCode || null,
     postalCode: raw.postalCode,
     country: raw.country,
+    addressIdEnviatodo: raw.address_id_enviatodo || null,
     references: raw.references || null,
     createdAt: raw.createdAt,
   };
@@ -144,9 +160,12 @@ async function createAddress(userId, body, userMeta = {}) {
     const address = await Address.create(
       {
         userId,
+        address_type_id: parseAddressTypeId(body.addressTypeId || body.address_type_id),
         fullName: sanitize(body.fullName, 150),
         phone: sanitize(body.phone, 20),
         street: sanitize(body.street, 255),
+        ext_number: sanitize(body.extNumber || body.ext_number || '', 10),
+        int_number: sanitize(body.intNumber || body.int_number || '', 10),
         city: sanitize(body.city, 100),
         state: sanitize(stateRow.name, 100),
         stateCode: stateRow.code,
@@ -158,14 +177,20 @@ async function createAddress(userId, body, userMeta = {}) {
     );
 
     const enviatodoPayload = buildEnviatodoPayload({
-      userId,
       userEmail: userMeta.email || '',
       address,
       stateCode: stateRow.code,
       body,
     });
 
-    await addAddressToEnviatodo(enviatodoPayload);
+    const enviatodoResponse = await addAddressToEnviatodo(enviatodoPayload);
+    const enviatodoAddressId = extractEnviatodoAddressId(enviatodoResponse);
+
+    if (!enviatodoAddressId) {
+      throw new HttpError(502, 'Enviatodo no devolvio el id de la direccion creada.');
+    }
+
+    await address.update({ address_id_enviatodo: enviatodoAddressId }, { transaction });
 
     await transaction.commit();
     return toPublic(address);
@@ -192,8 +217,17 @@ async function updateAddress(userId, addressId, body) {
 
   const updated = {};
   if (body.fullName !== undefined) updated.fullName = sanitize(body.fullName, 150);
+  if (body.addressTypeId !== undefined || body.address_type_id !== undefined) {
+    updated.address_type_id = parseAddressTypeId(body.addressTypeId || body.address_type_id);
+  }
   if (body.phone !== undefined) updated.phone = sanitize(body.phone, 20);
   if (body.street !== undefined) updated.street = sanitize(body.street, 255);
+  if (body.extNumber !== undefined || body.ext_number !== undefined) {
+    updated.ext_number = sanitize(body.extNumber || body.ext_number || '', 10);
+  }
+  if (body.intNumber !== undefined || body.int_number !== undefined) {
+    updated.int_number = sanitize(body.intNumber || body.int_number || '', 10);
+  }
   if (body.city !== undefined) updated.city = sanitize(body.city, 100);
   if (body.state !== undefined || body.stateCode !== undefined || body.state_code !== undefined) {
     const stateRow = await resolveState(body.state || address.state, body.stateCode || body.state_code);
@@ -213,6 +247,13 @@ async function deleteAddress(userId, addressId) {
   if (!address) {
     throw new HttpError(404, 'Dirección no encontrada.');
   }
+
+  if (!address.address_id_enviatodo) {
+    throw new HttpError(400, 'La direccion no tiene id de Enviatodo guardado. Vuelve a crearla.');
+  }
+
+  await deleteAddressFromEnviatodo(address.address_id_enviatodo);
+
   await address.destroy();
 }
 

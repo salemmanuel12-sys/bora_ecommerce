@@ -14,6 +14,10 @@ module.exports = (sequelize) => {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
+      address_type_id: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+      },
       fullName: {
         type: DataTypes.STRING(150),
         allowNull: false,
@@ -25,6 +29,14 @@ module.exports = (sequelize) => {
       street: {
         type: DataTypes.STRING(255),
         allowNull: false,
+      },
+      ext_number: {
+        type: DataTypes.STRING(10),
+        allowNull: true,
+      },
+      int_number: {
+        type: DataTypes.STRING(10),
+        allowNull: true,
       },
       city: {
         type: DataTypes.STRING(100),
@@ -49,6 +61,10 @@ module.exports = (sequelize) => {
       },
       references: {
         type: DataTypes.TEXT,
+        allowNull: true,
+      },
+      address_id_enviatodo: {
+        type: DataTypes.STRING(20),
         allowNull: true,
       },
     },

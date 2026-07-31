@@ -32,6 +32,10 @@ const ADMIN_ROUTES = {
     { label: "Gestión de Pedidos", to: "/admin/pedidos" },
     { label: "Listado" },
   ],
+  "/admin/pedidos/paquetes": [
+    { label: "Gestión de Pedidos", to: "/admin/pedidos" },
+    { label: "Gestionar Paquetes" },
+  ],
   "/admin/gestion-usuarios": [{ label: "Gestión de Usuarios" }],
   "/admin/gestion-usuarios/usuarios": [
     { label: "Gestión de Usuarios", to: "/admin/gestion-usuarios" },

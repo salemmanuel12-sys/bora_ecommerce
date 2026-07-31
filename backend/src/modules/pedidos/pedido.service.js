@@ -1,9 +1,15 @@
+const { Op } = require('sequelize');
 const { sequelize, Order, OrderItem, Cart, CartItem, Producto, Address, Tarjeta, Payment, Shipment, Notification, Usuario } = require('../../models/loader');
 const HttpError = require('../../utils/httpError');
 const { getOrCreateActiveCart } = require('../carrito/carrito.service');
 const { notifyNuevaOrden } = require('../../services/whatsapp.service');
 const tarjetaService = require('../tarjetas/tarjeta.service');
-const { getRates: getEnviatodoRates } = require('../../services/enviatodo.service');
+const {
+  getRates: getEnviatodoRates,
+  getPackageById: getEnviatodoPackageById,
+  getAddressById: getEnviatodoAddressById,
+  addAddress: addAddressToEnviatodo,
+} = require('../../services/enviatodo.service');
 
 const ORDER_STATUS_MAP = {
   pending: 'Pendiente',
@@ -28,7 +34,7 @@ const PAYMENT_METHOD_MAP = {
 };
 
 const ENVIATODO_ORIGIN = {
-  id: 'BORA_ORIGIN_1',
+  id: '1322755',
   lat: 0,
   lng: 0,
   address_type_id: '1',
@@ -47,6 +53,15 @@ const ENVIATODO_ORIGIN = {
   country_code: 'MX',
   reference: 'Ent C Franboyan y C5',
   default_addr: 'false',
+};
+
+const ENVIATODO_DEFAULT_PACKAGE_ID = 88227;
+const ENVIATODO_DEFAULT_PROVIDER_ID_FEDEX = 1;
+const ENVIATODO_DEFAULT_PROVIDER_ID_DHL = 5;
+
+const ENVIATODO_PROVIDER_NAME_BY_ID = {
+  '1': 'FEDEX',
+  '5': 'DHL',
 };
 
 function normalizeOrderStatus(value = '') {
@@ -78,6 +93,16 @@ function parseAmount(value) {
   return parsed;
 }
 
+function parsePositiveAmount(...values) {
+  for (const value of values) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return 0;
+}
+
 function firstDefined(item, keys) {
   for (const key of keys) {
     if (item && item[key] !== undefined && item[key] !== null && item[key] !== '') {
@@ -87,19 +112,39 @@ function firstDefined(item, keys) {
   return undefined;
 }
 
-function isAllowedCarrier(name = '') {
-  const normalized = normalizeText(name);
-  return normalized.includes('fedex') || normalized.includes('dhl');
+function extractPackageCandidate(rawPackage) {
+  if (!rawPackage) return null;
+  if (Array.isArray(rawPackage)) {
+    return rawPackage.find((row) => row && typeof row === 'object') || null;
+  }
+
+  if (typeof rawPackage !== 'object') return null;
+
+  const nestedCandidates = [
+    rawPackage.package,
+    rawPackage.data?.package,
+    rawPackage.response?.package,
+    rawPackage.data,
+    rawPackage.response,
+    rawPackage.result,
+  ];
+
+  for (const candidate of nestedCandidates) {
+    if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
+      return candidate;
+    }
+    if (Array.isArray(candidate)) {
+      const row = candidate.find((entry) => entry && typeof entry === 'object');
+      if (row) return row;
+    }
+  }
+
+  return rawPackage;
 }
 
-function isAllowedService(name = '') {
-  const normalized = normalizeText(name);
-  const terrestre = normalized.includes('terrestre') || normalized.includes('ground');
-  const aereoExpress =
-    (normalized.includes('aereo') || normalized.includes('air')) &&
-    (normalized.includes('express') || normalized.includes('expr'));
-
-  return terrestre || aereoExpress;
+function isAllowedProviderId(providerId) {
+  const id = String(providerId || '').trim();
+  return id === String(ENVIATODO_DEFAULT_PROVIDER_ID_FEDEX) || id === String(ENVIATODO_DEFAULT_PROVIDER_ID_DHL);
 }
 
 function flattenRatesPayload(raw) {
@@ -120,20 +165,45 @@ function flattenRatesPayload(raw) {
   return stacks;
 }
 
+function addDaysToIsoDate(dateValue, daysToAdd = 0) {
+  const raw = String(dateValue || '').trim();
+  if (!raw) return '';
+
+  const baseDatePart = raw.slice(0, 10);
+  const date = new Date(`${baseDatePart}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return baseDatePart;
+
+  date.setDate(date.getDate() + Number(daysToAdd || 0));
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function mapRateOption(rawItem) {
+  const providerId = String(
+    firstDefined(rawItem, ['provider_id', 'providerId']) || ''
+  ).trim();
+
+  const providerNameFromId = ENVIATODO_PROVIDER_NAME_BY_ID[providerId] || '';
   const providerServiceId = String(
     firstDefined(rawItem, ['provider_service_id', 'providerServiceId', 'service_id', 'serviceId', 'id']) || ''
   ).trim();
 
-  const carrier = String(firstDefined(rawItem, ['provider', 'carrier', 'courier', 'company']) || '').trim();
+  const carrier = String(firstDefined(rawItem, ['provider', 'carrier', 'courier', 'company']) || providerNameFromId).trim();
   const serviceName = String(
     firstDefined(rawItem, ['service', 'service_name', 'serviceName', 'description', 'name']) || ''
   ).trim();
-  const mode = String(firstDefined(rawItem, ['shipping_type', 'mode', 'type']) || '').trim();
+  const viaTransport = String(firstDefined(rawItem, ['via_transport', 'viaTransport', 'delivery_mode']) || '').trim();
 
-  const cost = parseAmount(
+  const charges = Array.isArray(rawItem?.charges) ? rawItem.charges : [];
+  const firstCharge = charges.find((entry) => entry && typeof entry === 'object') || null;
+
+  const costDirect = parseAmount(
     firstDefined(rawItem, [
       'total',
+      'total_rate',
       'total_amount',
       'price',
       'cost',
@@ -143,23 +213,37 @@ function mapRateOption(rawItem) {
       'amount_total',
     ])
   );
+  const costFromCharge = parseAmount(firstCharge?.total);
+  const cost = costDirect > 0 ? costDirect : costFromCharge;
 
-  const eta = String(firstDefined(rawItem, ['delivery_time', 'eta', 'transit_time', 'days']) || '').trim();
+  const estimatedDateRaw = String(firstDefined(rawItem, ['estimated_date', 'estimatedDate', 'delivery_time', 'eta', 'transit_time']) || '').trim();
+  const estimatedDate = addDaysToIsoDate(estimatedDateRaw, 2);
+  const quoteKey = providerId && providerServiceId ? `${providerId}:${providerServiceId}` : '';
 
-  if (!providerServiceId || !carrier || !serviceName || cost <= 0) {
+  if (!providerId || !providerServiceId || !carrier || cost <= 0) {
     return null;
   }
 
-  const label = `${carrier} - ${serviceName}`;
   return {
+    quoteKey,
+    providerId,
     providerServiceId,
-    carrier,
+    provider: carrier,
     serviceName,
-    mode,
+    viaTransport,
     cost: Number(cost.toFixed(2)),
-    eta,
-    label,
+    estimatedDate,
+    total: Number(cost.toFixed(2)),
   };
+}
+
+function selectBestQuoteByTransport(providerQuotes, transport = 'terrestre') {
+  const normalizedTransport = normalizeText(transport);
+  const filtered = providerQuotes
+    .filter((quote) => normalizeText(quote?.viaTransport || '') === normalizedTransport)
+    .sort((a, b) => a.cost - b.cost);
+
+  return filtered[0] || null;
 }
 
 function buildPackageSummary(cartItems) {
@@ -220,28 +304,191 @@ function buildPackageSummary(cartItems) {
   };
 }
 
-function buildDestinationAddress(address, userEmail) {
+function buildQuotePackage(templatePackage, fallbackPackage) {
+  const source = extractPackageCandidate(templatePackage) || {};
+
+  const id = parsePositiveAmount(
+    firstDefined(source, ['id', 'package_id', 'packageId']),
+    fallbackPackage?.id,
+    ENVIATODO_DEFAULT_PACKAGE_ID
+  );
+
+  const amountPkg = Number(
+    parsePositiveAmount(
+      firstDefined(source, ['amount_pkg', 'amount', 'amountPkg', 'insured_amount']),
+      fallbackPackage?.amount_pkg,
+      1
+    ).toFixed(2)
+  );
+
+  const height = Number(parsePositiveAmount(source.height, fallbackPackage?.height, 5).toFixed(2));
+  const width = Number(parsePositiveAmount(source.width, fallbackPackage?.width, 5).toFixed(2));
+  const length = Number(parsePositiveAmount(source.length, fallbackPackage?.length, 5).toFixed(2));
+
+  const realWeight = Number(
+    parsePositiveAmount(
+      firstDefined(source, ['real_weight', 'realWeight', 'weight']),
+      fallbackPackage?.real_weight,
+      fallbackPackage?.weight,
+      0.5
+    ).toFixed(2)
+  );
+
+  const volumetricWeight = Number(
+    parsePositiveAmount(
+      firstDefined(source, ['volumetric_weight', 'volumetricWeight']),
+      (length * width * height) / 5000,
+      fallbackPackage?.volumetric_weight,
+      0.03
+    ).toFixed(2)
+  );
+
+  const billWeight = Number(
+    parsePositiveAmount(
+      firstDefined(source, ['bill_weight', 'billWeight']),
+      Math.max(realWeight, volumetricWeight),
+      fallbackPackage?.bill_weight,
+      0.5
+    ).toFixed(2)
+  );
+
   return {
-    id: String(address.id),
-    lat: 0,
-    lng: 0,
-    address_type_id: '2',
-    full_name: String(address.fullName || ''),
-    email: String(userEmail || ''),
-    telephone: String(address.phone || ''),
-    street: String(address.street || ''),
-    ext_number: 'S/N',
-    int_number: '',
-    zip_code: String(address.postalCode || ''),
-    suburb: String(address.city || ''),
-    municipality: String(address.city || ''),
-    town: String(address.city || ''),
-    state: String(address.state || ''),
-    state_code: String(address.stateCode || ''),
-    country_code: 'MX',
-    reference: String(address.references || 'Sin referencia'),
-    default_addr: 'false',
+    id,
+    name: String(firstDefined(source, ['name', 'package_name']) || fallbackPackage?.name || 'CAJA CHICA'),
+    product_type: String(
+      firstDefined(source, ['product_type', 'productType']) || fallbackPackage?.product_type || '01010101'
+    ),
+    unit_type: String(firstDefined(source, ['unit_type', 'unitType']) || fallbackPackage?.unit_type || 'X1A'),
+    package_content: String(
+      firstDefined(source, ['package_content', 'content', 'description'])
+        || fallbackPackage?.package_content
+        || 'PRODUCTO ECOMMERCE'
+    ),
+    amount_pkg: amountPkg,
+    height,
+    width,
+    length,
+    weight: realWeight,
+    real_weight: realWeight,
+    volumetric_weight: volumetricWeight,
+    bill_weight: billWeight,
+    default_pkg: Boolean(firstDefined(source, ['default_pkg', 'defaultPkg']) || false),
   };
+}
+
+function formatEnviatodoDateTime(value) {
+  if (!value) return '';
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+function toEnviatodoBinaryFlag(value, fallback = '0') {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  return ['1', 'true', 'si', 'yes'].includes(normalized) ? '1' : '0';
+}
+
+function pickFirstName(fullName = '') {
+  const clean = String(fullName || '').trim();
+  if (!clean) return '';
+  return clean.split(/\s+/)[0] || clean;
+}
+
+function buildQuoteAddressPayload(rawAddress, {
+  emailFallback = '',
+  addressTypeFallback = '2',
+  defaultAddrFallback = '1',
+  createdAtFallback = '',
+  updatedAtFallback = '',
+  statusIdFallback = '0',
+} = {}) {
+  const fullName = String(rawAddress?.full_name || rawAddress?.fullName || '').trim();
+  const city = String(rawAddress?.city || rawAddress?.suburb || rawAddress?.municipality || rawAddress?.town || '').trim();
+
+  const createdAt = formatEnviatodoDateTime(rawAddress?.created_at || rawAddress?.createdAt || createdAtFallback);
+  const updatedAt = formatEnviatodoDateTime(rawAddress?.updated_at || rawAddress?.updatedAt || updatedAtFallback || rawAddress?.createdAt || createdAtFallback);
+
+  return {
+    address_type_id: String(rawAddress?.address_type_id || addressTypeFallback),
+    full_name: fullName,
+    email: String(rawAddress?.email || emailFallback || ''),
+    telephone: String(rawAddress?.telephone || rawAddress?.phone || ''),
+    street: String(rawAddress?.street || ''),
+    ext_number: String(rawAddress?.ext_number || 'S/N'),
+    int_number: String(rawAddress?.int_number || ''),
+    zip_code: String(rawAddress?.zip_code || rawAddress?.postalCode || ''),
+    suburb: String(rawAddress?.suburb || city),
+    municipality: String(rawAddress?.municipality || city),
+    town: String(rawAddress?.town || city),
+    state: String(rawAddress?.state || ''),
+    state_code: String(rawAddress?.state_code || rawAddress?.stateCode || ''),
+    country_code: String(rawAddress?.country_code || 'MX'),
+    default_addr: toEnviatodoBinaryFlag(rawAddress?.default_addr, defaultAddrFallback),
+    created_at: createdAt,
+    updated_at: updatedAt,
+    status_id: String(rawAddress?.status_id || statusIdFallback),
+    lat: String(rawAddress?.lat || ''),
+    lng: String(rawAddress?.lng || ''),
+    reference: String(rawAddress?.reference || rawAddress?.references || '-'),
+    company: String(rawAddress?.company || ''),
+    name: String(rawAddress?.name || pickFirstName(fullName)),
+  };
+}
+
+function buildQuotePackagePayload(rawPackage, itemCount) {
+  const realWeight = Number(parsePositiveAmount(rawPackage?.real_weight, rawPackage?.weight, 0.5).toFixed(2));
+  const volumetricWeight = Number(
+    parsePositiveAmount(rawPackage?.volumetric_weight, (rawPackage?.length * rawPackage?.width * rawPackage?.height) / 5000, 0.03).toFixed(2)
+  );
+  const billWeight = Number(parsePositiveAmount(rawPackage?.bill_weight, Math.max(realWeight, volumetricWeight), 0.5).toFixed(2));
+  const amountPkg = Number(parsePositiveAmount(rawPackage?.amount_pkg, 1).toFixed(2));
+
+  return {
+    name: String(rawPackage?.name || ''),
+    product_type: String(rawPackage?.product_type || '01010101'),
+    unit_type: String(rawPackage?.unit_type || 'X1A'),
+    package_content: String(rawPackage?.package_content || 'PRODUCTO ECOMMERCE'),
+    amount_pkg: String(amountPkg),
+    height: Number(parsePositiveAmount(rawPackage?.height, 5).toFixed(2)),
+    width: Number(parsePositiveAmount(rawPackage?.width, 5).toFixed(2)),
+    length: Number(parsePositiveAmount(rawPackage?.length, 5).toFixed(2)),
+    weight: Number(parsePositiveAmount(rawPackage?.weight, realWeight, 0.5).toFixed(2)),
+    id: String(rawPackage?.id || ''),
+    package_type_id: String(rawPackage?.package_type_id || 1),
+    real_weight: realWeight.toFixed(2),
+    volumetric_weight: String(volumetricWeight),
+    bill_weight: String(billWeight),
+    default_pkg: toEnviatodoBinaryFlag(rawPackage?.default_pkg, '0'),
+    product_quantity: String(Math.max(1, Number(itemCount || 1))),
+  };
+}
+
+function buildDestinationAddress(address, userEmail) {
+  if (!address.address_id_enviatodo) {
+    throw new HttpError(400, 'La direccion destino no tiene address_id_enviatodo registrado.');
+  }
+
+  return buildQuoteAddressPayload(address, {
+    emailFallback: userEmail,
+    addressTypeFallback: '2',
+    defaultAddrFallback: '1',
+    createdAtFallback: address.createdAt,
+    updatedAtFallback: address.updatedAt || address.createdAt,
+    statusIdFallback: '0',
+  });
 }
 
 async function getCartItemsWithDimensions(userId) {
@@ -294,37 +541,61 @@ async function resolveShippingQuotes(userId, shippingAddressId) {
   const { items } = await getCartItemsWithDimensions(userId);
   const summary = buildPackageSummary(items);
   const destination = buildDestinationAddress(address, user.email);
+  const rawTemplatePackage = await getEnviatodoPackageById(ENVIATODO_DEFAULT_PACKAGE_ID);
+  const quotePackage = buildQuotePackage(rawTemplatePackage, summary.package);
+  const quotePackagePayload = buildQuotePackagePayload(quotePackage, summary.itemCount);
+  const origin = buildQuoteAddressPayload(ENVIATODO_ORIGIN, {
+    emailFallback: ENVIATODO_ORIGIN.email,
+    addressTypeFallback: '1',
+    defaultAddrFallback: '1',
+    statusIdFallback: '0',
+  });
 
-  const payload = {
+  const buildRatesPayloadForProvider = (providerId) => ({
     type: 'order',
-    quantity: 1,
-    provider_service_id: '1',
     quotes: {
-      user_id: String(process.env.ENVIATODO_USER_ID || '1595'),
-      shipping_type: 'package',
-      origin: ENVIATODO_ORIGIN,
+      shipping_type: '1',
+      quantity: 1,
+      provider_id: providerId,
+      origin,
       destination,
-      package: summary.package,
+      package: quotePackagePayload,
     },
-  };
+  });
 
-  const rawRates = await getEnviatodoRates(payload);
-  const flat = flattenRatesPayload(rawRates);
+  const providerIds = [ENVIATODO_DEFAULT_PROVIDER_ID_FEDEX, ENVIATODO_DEFAULT_PROVIDER_ID_DHL];
 
-  const mapped = flat
-    .map(mapRateOption)
-    .filter(Boolean)
-    .filter((option) => isAllowedCarrier(option.carrier) && isAllowedService(option.serviceName))
-    .sort((a, b) => a.cost - b.cost);
+  const providerResponses = await Promise.allSettled(
+    providerIds.map(async (providerId) => {
+      const rawRates = await getEnviatodoRates(buildRatesPayloadForProvider(providerId));
+      const providerQuotes = flattenRatesPayload(rawRates)
+        .map(mapRateOption)
+        .filter(Boolean)
+        .filter((quote) => isAllowedProviderId(quote.providerId))
+        .filter((quote) => String(quote.providerId) === String(providerId));
+
+      const terrestrial = selectBestQuoteByTransport(providerQuotes, 'terrestre');
+      const aerial = selectBestQuoteByTransport(providerQuotes, 'aereo');
+
+      const selected = [terrestrial, aerial].filter(Boolean);
+
+      return selected;
+    })
+  );
+
+  const mapped = providerResponses
+    .filter((result) => result.status === 'fulfilled')
+    .flatMap((result) => (Array.isArray(result.value) ? result.value : []))
+    .filter(Boolean);
 
   if (mapped.length === 0) {
-    throw new HttpError(404, 'No hay cotizaciones disponibles de FedEx o DHL (terrestre/aereo express).');
+    throw new HttpError(404, 'No hay cotizaciones disponibles de FedEx o DHL.');
   }
 
   return {
     subtotal: summary.subtotal,
     itemCount: summary.itemCount,
-    package: summary.package,
+    package: quotePackage,
     quotes: mapped,
   };
 }
@@ -458,7 +729,7 @@ function toAdminOrder(order) {
  * Crea un pedido a partir del carrito activo del usuario.
  * Congela precios, reduce stock y marca el carrito como 'converted'.
  */
-async function checkout(userId, { shippingAddressId, shippingProviderServiceId, paymentMethod, cardId, card }) {
+async function checkout(userId, { shippingAddressId, shippingProviderId, shippingProviderServiceId, paymentMethod, cardId, card }) {
   const { cart, cartRaw, productById } = await getCartItemsWithDimensions(userId);
 
   const normalizedPaymentMethod = normalizePaymentMethod(paymentMethod);
@@ -493,9 +764,16 @@ async function checkout(userId, { shippingAddressId, shippingProviderServiceId, 
   );
 
   const shippingData = await resolveShippingQuotes(userId, Number(shippingAddressId));
-  const selectedQuote = shippingData.quotes.find(
-    (quote) => String(quote.providerServiceId) === String(shippingProviderServiceId)
-  );
+  const selectedQuote = shippingData.quotes.find((quote) => {
+    const sameService = String(quote.providerServiceId) === String(shippingProviderServiceId);
+    if (!sameService) return false;
+
+    if (shippingProviderId === undefined || shippingProviderId === null || shippingProviderId === '') {
+      return true;
+    }
+
+    return String(quote.providerId) === String(shippingProviderId);
+  });
 
   if (!selectedQuote) {
     throw new HttpError(400, 'La paqueteria seleccionada ya no esta disponible. Cotiza de nuevo.');
@@ -571,7 +849,7 @@ async function checkout(userId, { shippingAddressId, shippingProviderServiceId, 
     await Shipment.create(
       {
         orderId: order.id,
-        carrier: `${selectedQuote.carrier} - ${selectedQuote.serviceName}`,
+        carrier: `${selectedQuote.provider} - ${selectedQuote.viaTransport}`,
         status: 'Pendiente',
       },
       { transaction }

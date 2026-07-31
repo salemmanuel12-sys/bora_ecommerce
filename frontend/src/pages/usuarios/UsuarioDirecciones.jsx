@@ -9,8 +9,11 @@ import { direccionService } from "../../api/direccionService";
 
 const EMPTY_FORM = {
   fullName: "",
+  addressTypeId: 2,
   phone: "",
   street: "",
+  extNumber: "",
+  intNumber: "",
   city: "",
   state: "",
   stateCode: "",
@@ -112,8 +115,11 @@ function UsuarioDirecciones() {
     setEditingId(address.id);
     setForm({
       fullName: address.fullName || "",
+      addressTypeId: address.addressTypeId || 2,
       phone: address.phone || "",
       street: address.street || "",
+      extNumber: address.ext_number || "",
+      intNumber: address.int_number || "",
       city: address.city || "",
       state: address.state || "",
       stateCode:
@@ -143,8 +149,11 @@ function UsuarioDirecciones() {
       setSaving(true);
       const payload = {
         fullName: form.fullName.trim(),
+        addressTypeId: form.addressTypeId,
         phone: form.phone.trim(),
         street: form.street.trim(),
+        extNumber: form.extNumber.trim(),
+        intNumber: form.intNumber.trim(),
         city: form.city.trim(),
         stateCode: form.stateCode.trim(),
         state: form.state.trim(),
@@ -231,8 +240,13 @@ function UsuarioDirecciones() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="text-sm text-[#5b5866]">
                         <p className="font-semibold text-[#231f20]">{address.fullName}</p>
+                        <p>Tipo de dirección: {address.addressTypeId}</p>
                         <p>{address.phone}</p>
                         <p>{address.street}</p>
+                        <p>
+                          {address.extNumber ? `Ext: ${address.extNumber}` : ''}
+                          {address.intNumber ? ` Int: ${address.intNumber}` : ''}
+                        </p>
                         <p>
                           {address.city}, {address.state}, {address.postalCode}
                         </p>
@@ -275,9 +289,22 @@ function UsuarioDirecciones() {
 
             <form onSubmit={handleSubmit} className="space-y-3">
               <input name="fullName" value={form.fullName} onChange={handleChange} placeholder="Nombre completo" className="w-full rounded-xl border border-[#e7d8fb] px-3 py-2.5 text-sm" />
+              <select
+                name="addressTypeId"
+                value={form.addressTypeId}
+                onChange={handleChange}
+                className="w-full rounded-xl border border-[#e7d8fb] px-3 py-2.5 text-sm"
+              >
+                <option value="">Selecciona tipo de dirección</option>
+                <option value="1">Origen</option>
+                <option value="2">Destino</option>
+              </select>
               <input name="phone" value={form.phone} onChange={handleChange} placeholder="Telefono" className="w-full rounded-xl border border-[#e7d8fb] px-3 py-2.5 text-sm" />
               <input name="street" value={form.street} onChange={handleChange} placeholder="Calle y numero" className="w-full rounded-xl border border-[#e7d8fb] px-3 py-2.5 text-sm" />
-
+              <div className="grid grid-cols-2 gap-2">
+                <input name="extNumber" value={form.extNumber} onChange={handleChange} placeholder="Numero exterior" className="w-full rounded-xl border border-[#e7d8fb] px-3 py-2.5 text-sm" />
+                <input name="intNumber" value={form.intNumber} onChange={handleChange} placeholder="Numero interior" className="w-full rounded-xl border border-[#e7d8fb] px-3 py-2.5 text-sm" />
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <input name="city" value={form.city} onChange={handleChange} placeholder="Ciudad" className="w-full rounded-xl border border-[#e7d8fb] px-3 py-2.5 text-sm" />
                 <select

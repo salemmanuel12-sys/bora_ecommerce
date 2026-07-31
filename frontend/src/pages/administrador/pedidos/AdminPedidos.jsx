@@ -1,8 +1,7 @@
 import { useNavigate } from "react-router-dom";
-import { ClipboardList, PackageSearch } from "lucide-react";
+import { PackageSearch, PackagePlus } from "lucide-react";
 
 const modules = [
-  
   {
     label: "Seguimiento",
     description: "Consulta pago, envio, direccion y estado de cada pedido.",
@@ -12,6 +11,16 @@ const modules = [
     bg: "bg-cyan-600/10",
     hoverBg: "group-hover:bg-cyan-600",
     glow: "from-cyan-500/10 to-sky-500/10",
+  },
+  {
+    label: "Gestionar Paquetes",
+    description: "Crear, listar, consultar y eliminar paquetes de EnviaTodo.",
+    icon: PackagePlus,
+    path: "/admin/pedidos/paquetes",
+    color: "text-emerald-600 dark:text-emerald-400",
+    bg: "bg-emerald-600/10",
+    hoverBg: "group-hover:bg-emerald-600",
+    glow: "from-emerald-500/10 to-lime-500/10",
   },
 ];
 

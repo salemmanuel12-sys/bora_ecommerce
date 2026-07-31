@@ -8,9 +8,10 @@ export const pedidoService = {
     return response.data?.data ?? response.data;
   },
 
-  async checkout({ shippingAddressId, shippingProviderServiceId, paymentMethod, cardId, card }) {
+  async checkout({ shippingAddressId, shippingProviderId, shippingProviderServiceId, paymentMethod, cardId, card }) {
     const response = await api.post("/pedidos/checkout", {
       shippingAddressId,
+      shippingProviderId,
       shippingProviderServiceId,
       paymentMethod,
       cardId,
