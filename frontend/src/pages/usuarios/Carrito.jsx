@@ -149,6 +149,7 @@ function Carrito() {
 
   const shippingCost = Number(selectedShippingQuote?.cost || 0);
   const grandTotal = Number((subtotal + shippingCost).toFixed(2));
+  const isShippingQuoteBlocking = step === 2 && loadingShippingQuotes;
 
   // Load cart
   useEffect(() => {
@@ -570,7 +571,17 @@ function Carrito() {
 
             {/* ── STEP 2: DIRECCIÓN ─────────────────────────────────── */}
             {step === 2 && (
-              <div className="rounded-3xl border border-[#e8e3f5] bg-white p-6 shadow-[0_25px_70px_-50px_rgba(70,40,160,0.25)]">
+              <div className="relative rounded-3xl border border-[#e8e3f5] bg-white p-6 shadow-[0_25px_70px_-50px_rgba(70,40,160,0.25)]" aria-busy={isShippingQuoteBlocking}>
+                {isShippingQuoteBlocking && (
+                  <div className="absolute inset-0 z-20 grid place-items-center rounded-3xl bg-white/80 backdrop-blur-[2px]">
+                    <div className="flex flex-col items-center rounded-2xl border border-[#e5dcfb] bg-white px-6 py-5 shadow-[0_16px_45px_-30px_rgba(70,40,160,0.45)]">
+                      <div className="h-9 w-9 animate-spin rounded-full border-2 border-[#e1d4fa] border-t-[#7a3fe0]" />
+                      <p className="mt-3 text-sm font-semibold text-[#4d3a80]">Cotizando paquetería...</p>
+                      <p className="mt-1 text-xs text-[#72658f]">Espera un momento mientras obtenemos las opciones de envío.</p>
+                    </div>
+                  </div>
+                )}
+
                 {addresses.length > 0 && !showAddressForm && (
                   <div className="mb-5 space-y-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b83a6]">
@@ -809,6 +820,7 @@ function Carrito() {
                   <button
                     type="button"
                     onClick={() => setStep(1)}
+                    disabled={isShippingQuoteBlocking}
                     className="inline-flex items-center gap-1 rounded-xl border border-[#ebe6f7] px-4 py-3 text-sm text-[#5b5866] transition hover:bg-[#faf7ff]"
                   >
                     <ArrowLeft size={15} /> Atrás
@@ -816,7 +828,7 @@ function Carrito() {
                   <button
                     type="button"
                     onClick={handleCheckout}
-                    disabled={processingCheckout || !selectedShippingProviderServiceId}
+                    disabled={processingCheckout || isShippingQuoteBlocking || !selectedShippingProviderServiceId}
                     className="flex-1 rounded-xl bg-gradient-to-r from-[#6a40d8] via-[#9b24cf] to-[#38ddd6] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
                   >
                     {processingCheckout ? "Creando pedido..." : "Continuar a pagos"} <ChevronRight className="ml-1 inline" size={16} />
