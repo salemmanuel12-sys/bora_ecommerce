@@ -154,8 +154,7 @@ function requestEnviatodo({
 async function requestEnviatodoWithFallback({ url, method = 'GET', payload = null, operation }) {
   const token = getEnviatodoToken();
 
-  console.log(payload ? `Enviando a Enviatodo (${operation}): ${JSON.stringify(payload)}` : `Solicitando a Enviatodo (${operation})`);
-
+ 
   try {
     return await requestEnviatodo({
       url,
