@@ -1,6 +1,6 @@
-const { Op } = require('sequelize');
-const { Cart, CartItem, Producto, ProductoImagen } = require('../../models/loader');
+const { Cart, CartItem, Producto, ProductoImagen, ProductoDescuento } = require('../../models/loader');
 const HttpError = require('../../utils/httpError');
+const { resolveMayoreoPricing } = require('../../utils/productoDescuento.utils');
 
 const includeProducto = {
   model: Producto,
@@ -14,16 +14,38 @@ const includeProducto = {
       required: false,
       order: [['orden', 'ASC']],
     },
+    {
+      model: ProductoDescuento,
+      as: 'descuentosMayoreo',
+      attributes: ['id', 'productoId', 'cantidadMin', 'cantidadMax', 'tipoDescuento', 'valor'],
+      required: false,
+    },
   ],
 };
 
+function computeCartItemPricing(item) {
+  const producto = item?.producto || {};
+
+  return resolveMayoreoPricing({
+    basePrice: producto.price,
+    quantity: item?.quantity,
+    descuentos: Array.isArray(producto.descuentosMayoreo) ? producto.descuentosMayoreo : [],
+  });
+}
+
 function toPublicItem(item) {
   const raw = item?.get ? item.get({ plain: true }) : item;
+  const pricing = computeCartItemPricing(raw);
+
   return {
     id: raw.id,
     productId: raw.productId,
     quantity: raw.quantity,
-    price: Number(raw.price),
+    price: pricing.unitPrice,
+    basePrice: pricing.basePrice,
+    subtotal: pricing.subtotal,
+    descuentoAplicado: pricing.descuentoAplicado,
+    ahorroTotal: pricing.ahorroTotal,
     producto: raw.producto
       ? {
           id: raw.producto.id,
@@ -32,12 +54,41 @@ function toPublicItem(item) {
           stock: raw.producto.stock,
           status: Boolean(raw.producto.status),
           sku: raw.producto.sku,
+          descuentosMayoreo: Array.isArray(raw.producto.descuentosMayoreo)
+            ? raw.producto.descuentosMayoreo
+                .map((row) => ({
+                  id: row.id,
+                  productoId: row.productoId,
+                  cantidadMin: Number(row.cantidadMin),
+                  cantidadMax: Number(row.cantidadMax),
+                  tipoDescuento: row.tipoDescuento,
+                  valor: Number(row.valor),
+                }))
+                .sort((left, right) => left.cantidadMin - right.cantidadMin)
+            : [],
           imagen: Array.isArray(raw.producto.imagenes) && raw.producto.imagenes.length > 0
             ? raw.producto.imagenes[0].url
             : null,
         }
       : null,
   };
+}
+
+async function syncCartItemPrices(cart) {
+  const items = Array.isArray(cart?.items) ? cart.items : [];
+  let hasChanges = false;
+
+  for (const item of items) {
+    const pricing = computeCartItemPricing(item);
+    const currentPrice = Number(item.price || 0);
+
+    if (Math.abs(currentPrice - pricing.unitPrice) >= 0.01) {
+      await item.update({ price: pricing.unitPrice });
+      hasChanges = true;
+    }
+  }
+
+  return hasChanges;
 }
 
 /**
@@ -64,11 +115,22 @@ async function getOrCreateActiveCart(userId) {
  * Retorna el carrito activo del usuario con sus items.
  */
 async function getCart(userId) {
-  const cart = await getOrCreateActiveCart(userId);
+  let cart = await getOrCreateActiveCart(userId);
+  const updated = await syncCartItemPrices(cart);
+
+  if (updated) {
+    cart = await Cart.findByPk(cart.id, {
+      include: [{ model: CartItem, as: 'items', include: [includeProducto] }],
+      order: [[{ model: CartItem, as: 'items' }, 'id', 'ASC']],
+    });
+  }
+
   const raw = cart.get({ plain: true });
 
-  const subtotal = (raw.items || []).reduce(
-    (acc, item) => acc + Number(item.price) * item.quantity,
+  const items = (raw.items || []).map(toPublicItem);
+
+  const subtotal = items.reduce(
+    (acc, item) => acc + Number(item.subtotal || 0),
     0
   );
 
@@ -76,9 +138,9 @@ async function getCart(userId) {
     id: raw.id,
     status: raw.status,
     createdAt: raw.createdAt,
-    items: (raw.items || []).map(toPublicItem),
+    items,
     subtotal: Number(subtotal.toFixed(2)),
-    itemCount: (raw.items || []).reduce((acc, item) => acc + item.quantity, 0),
+    itemCount: items.reduce((acc, item) => acc + item.quantity, 0),
   };
 }
 
@@ -89,7 +151,16 @@ async function getCart(userId) {
 async function addItem(userId, { productId, quantity = 1 }) {
   const parsedQty = Math.max(1, Number.parseInt(String(quantity), 10) || 1);
 
-  const producto = await Producto.findByPk(productId);
+  const producto = await Producto.findByPk(productId, {
+    include: [
+      {
+        model: ProductoDescuento,
+        as: 'descuentosMayoreo',
+        attributes: ['id', 'productoId', 'cantidadMin', 'cantidadMax', 'tipoDescuento', 'valor'],
+        required: false,
+      },
+    ],
+  });
   if (!producto) {
     throw new HttpError(404, 'Producto no encontrado.');
   }
@@ -111,13 +182,25 @@ async function addItem(userId, { productId, quantity = 1 }) {
     if (producto.stock < newQty) {
       throw new HttpError(400, `Stock insuficiente para esa cantidad. Disponible: ${producto.stock}.`);
     }
-    await existing.update({ quantity: newQty });
+    const pricing = resolveMayoreoPricing({
+      basePrice: producto.price,
+      quantity: newQty,
+      descuentos: producto.descuentosMayoreo,
+    });
+
+    await existing.update({ quantity: newQty, price: pricing.unitPrice });
   } else {
+    const pricing = resolveMayoreoPricing({
+      basePrice: producto.price,
+      quantity: parsedQty,
+      descuentos: producto.descuentosMayoreo,
+    });
+
     await CartItem.create({
       cartId: cart.id,
       productId,
       quantity: parsedQty,
-      price: producto.price,
+      price: pricing.unitPrice,
     });
   }
 
@@ -140,12 +223,27 @@ async function updateItem(userId, cartItemId, { quantity }) {
     throw new HttpError(404, 'Item no encontrado en el carrito.');
   }
 
-  const producto = await Producto.findByPk(item.productId);
+  const producto = await Producto.findByPk(item.productId, {
+    include: [
+      {
+        model: ProductoDescuento,
+        as: 'descuentosMayoreo',
+        attributes: ['id', 'productoId', 'cantidadMin', 'cantidadMax', 'tipoDescuento', 'valor'],
+        required: false,
+      },
+    ],
+  });
   if (producto && producto.stock < parsedQty) {
     throw new HttpError(400, `Stock insuficiente. Disponible: ${producto.stock}.`);
   }
 
-  await item.update({ quantity: parsedQty });
+  const pricing = resolveMayoreoPricing({
+    basePrice: producto?.price,
+    quantity: parsedQty,
+    descuentos: producto?.descuentosMayoreo,
+  });
+
+  await item.update({ quantity: parsedQty, price: pricing.unitPrice });
   return getCart(userId);
 }
 

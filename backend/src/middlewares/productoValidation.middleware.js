@@ -1,4 +1,5 @@
 const HttpError = require('../utils/httpError');
+const { normalizeDescuentosMayoreoInput } = require('../utils/productoDescuento.utils');
 
 function sanitizeText(value = '', maxLength = 255) {
   return String(value).trim().replace(/[<>"'&]/g, '').slice(0, maxLength);
@@ -90,6 +91,14 @@ function parseAtributos(value) {
   return normalized;
 }
 
+function parseDescuentosMayoreo(value) {
+  if (value === undefined) {
+    return [];
+  }
+
+  return normalizeDescuentosMayoreoInput(value);
+}
+
 function parseOptionalStatus(value) {
   if (value === undefined || value === null || value === '') {
     return null;
@@ -136,6 +145,7 @@ function validateCreateProducto(req, _res, next) {
   const sku = sanitizeText(req.body?.sku || '', 100);
   const status = parseOptionalStatus(req.body?.status);
   const atributos = parseAtributos(req.body?.atributos);
+  const descuentosMayoreo = parseDescuentosMayoreo(req.body?.descuentosMayoreo);
 
   if (!categoriaId) {
     return next(new HttpError(400, 'categoriaId es obligatorio y debe ser valido.'));
@@ -185,6 +195,10 @@ function validateCreateProducto(req, _res, next) {
     return next(new HttpError(400, 'atributos invalido. Usa un arreglo de { nombre, valor }.'));
   }
 
+  if (descuentosMayoreo === null) {
+    return next(new HttpError(400, 'descuentosMayoreo invalido. Usa rangos sin traslape con cantidadMin, cantidadMax, tipoDescuento y valor.'));
+  }
+
   req.body.categoriaId = categoriaId;
   req.body.name = name;
   req.body.description = description;
@@ -197,6 +211,7 @@ function validateCreateProducto(req, _res, next) {
   req.body.sku = sku;
   req.body.status = status === null ? true : status;
   req.body.atributos = atributos;
+  req.body.descuentosMayoreo = descuentosMayoreo;
 
   return next();
 }
@@ -216,6 +231,9 @@ function validateUpdateProducto(req, _res, next) {
   const sku = sanitizeText(req.body?.sku || '', 100);
   const status = parseOptionalStatus(req.body?.status);
   const atributos = parseAtributos(req.body?.atributos);
+  const descuentosMayoreo = req.body?.descuentosMayoreo === undefined
+    ? undefined
+    : parseDescuentosMayoreo(req.body?.descuentosMayoreo);
 
   if ((req.body?.categoriaId !== undefined || req.body?.subcategoriaId !== undefined) && !categoriaId) {
     return next(new HttpError(400, 'categoriaId invalido.'));
@@ -265,6 +283,10 @@ function validateUpdateProducto(req, _res, next) {
     return next(new HttpError(400, 'atributos invalido. Usa un arreglo de { nombre, valor }.'));
   }
 
+  if (descuentosMayoreo === null) {
+    return next(new HttpError(400, 'descuentosMayoreo invalido. Usa rangos sin traslape con cantidadMin, cantidadMax, tipoDescuento y valor.'));
+  }
+
   if (categoriaId) {
     req.body.categoriaId = categoriaId;
   }
@@ -299,6 +321,10 @@ function validateUpdateProducto(req, _res, next) {
   }
 
   req.body.atributos = atributos;
+
+  if (descuentosMayoreo !== undefined) {
+    req.body.descuentosMayoreo = descuentosMayoreo;
+  }
 
   return next();
 }

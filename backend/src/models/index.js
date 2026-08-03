@@ -32,6 +32,7 @@ function initModels(sequelize) {
 
   db.Categoria = require('./categoria.model')(sequelize);
   db.Producto = require('./producto.model')(sequelize);
+  db.ProductoDescuento = require('./productoDescuento.model')(sequelize);
   db.Atributo = require('./atributo.model')(sequelize);
   db.AtributoValor = require('./atributoValor.model')(sequelize);
   db.ProductoAtributo = require('./productoAtributo.model')(sequelize);
@@ -70,6 +71,7 @@ function initModels(sequelize) {
     RolAccion,
     Categoria,
     Producto,
+    ProductoDescuento,
     Atributo,
     AtributoValor,
     ProductoAtributo,
@@ -107,6 +109,9 @@ function initModels(sequelize) {
   // CATEGORÍAS
   Producto.belongsTo(Categoria, { foreignKey: 'categoriaId', as: 'categoria' });
   Categoria.hasMany(Producto, { foreignKey: 'categoriaId', as: 'productos' });
+
+  Producto.hasMany(ProductoDescuento, { foreignKey: 'productoId', as: 'descuentosMayoreo' });
+  ProductoDescuento.belongsTo(Producto, { foreignKey: 'productoId', as: 'producto' });
 
   Atributo.hasMany(AtributoValor, { foreignKey: 'atributoId', as: 'valores' });
   AtributoValor.belongsTo(Atributo, { foreignKey: 'atributoId', as: 'atributo' });

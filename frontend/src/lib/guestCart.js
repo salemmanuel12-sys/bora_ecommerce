@@ -1,3 +1,5 @@
+import { resolveMayoreoPricing } from "./mayoreoPricing";
+
 const GUEST_CART_KEY = "guest_cart_v1";
 
 function toNumber(value, fallback = 0) {
@@ -46,12 +48,18 @@ function buildGuestItemFromProducto(producto, quantity = 1) {
   const image = Array.isArray(producto?.imagenes) && producto.imagenes[0]?.url
     ? producto.imagenes[0].url
     : null;
+  const descuentosMayoreo = Array.isArray(producto?.descuentosMayoreo) ? producto.descuentosMayoreo : [];
+  const pricing = resolveMayoreoPricing(producto?.price, quantity, descuentosMayoreo);
 
   return {
     id: `guest-${productId}`,
     productId,
     quantity: Math.max(1, toNumber(quantity, 1)),
-    price: toNumber(producto?.price, 0),
+    price: pricing.unitPrice,
+    basePrice: pricing.basePrice,
+    subtotal: pricing.subtotal,
+    descuentoAplicado: pricing.descuentoAplicado,
+    ahorroTotal: pricing.ahorroTotal,
     producto: {
       id: productId,
       name: producto?.name || "Producto",
@@ -59,6 +67,7 @@ function buildGuestItemFromProducto(producto, quantity = 1) {
       stock: toNumber(producto?.stock, 0),
       status: Boolean(producto?.status ?? true),
       sku: producto?.sku || null,
+      descuentosMayoreo,
       imagen: image,
     },
   };
@@ -86,12 +95,20 @@ export function addGuestItemFromProducto(producto, quantity = 1) {
     const current = cart.items[existingIndex];
     const maxStock = toNumber(current.producto?.stock, 999999);
     const nextQty = Math.min(maxStock, toNumber(current.quantity, 1) + toNumber(quantity, 1));
+    const descuentos = Array.isArray(current.producto?.descuentosMayoreo)
+      ? current.producto.descuentosMayoreo
+      : incoming.producto?.descuentosMayoreo || [];
+    const pricing = resolveMayoreoPricing(incoming.producto?.price, nextQty, descuentos);
 
     cart.items[existingIndex] = {
       ...current,
       quantity: Math.max(1, nextQty),
-      price: incoming.price,
-      producto: { ...current.producto, ...incoming.producto },
+      price: pricing.unitPrice,
+      basePrice: pricing.basePrice,
+      subtotal: pricing.subtotal,
+      descuentoAplicado: pricing.descuentoAplicado,
+      ahorroTotal: pricing.ahorroTotal,
+      producto: { ...current.producto, ...incoming.producto, descuentosMayoreo: descuentos },
     };
   } else {
     cart.items.push(incoming);
@@ -111,10 +128,24 @@ export function updateGuestItem(itemId, quantity) {
 
   const nextQty = Math.max(1, toNumber(quantity, 1));
   const maxStock = toNumber(cart.items[index]?.producto?.stock, 999999);
+  const boundedQty = Math.min(nextQty, maxStock);
+  const descuentos = Array.isArray(cart.items[index]?.producto?.descuentosMayoreo)
+    ? cart.items[index].producto.descuentosMayoreo
+    : [];
+  const pricing = resolveMayoreoPricing(
+    cart.items[index]?.producto?.price,
+    boundedQty,
+    descuentos
+  );
 
   cart.items[index] = {
     ...cart.items[index],
-    quantity: Math.min(nextQty, maxStock),
+    quantity: boundedQty,
+    price: pricing.unitPrice,
+    basePrice: pricing.basePrice,
+    subtotal: pricing.subtotal,
+    descuentoAplicado: pricing.descuentoAplicado,
+    ahorroTotal: pricing.ahorroTotal,
   };
 
   writeStorage(cart);

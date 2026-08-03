@@ -92,6 +92,7 @@ async function createProducto(req, res, next) {
       sku: req.body.sku,
       status: req.body.status,
       atributos: req.body.atributos,
+      descuentosMayoreo: req.body.descuentosMayoreo,
     });
 
     return res.status(201).json({
@@ -122,6 +123,7 @@ async function updateProducto(req, res, next) {
       sku: req.body.sku,
       status: req.body.status,
       atributos: req.body.atributos,
+      descuentosMayoreo: req.body.descuentosMayoreo,
     });
 
     return res.status(200).json({

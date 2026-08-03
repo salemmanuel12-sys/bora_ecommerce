@@ -135,7 +135,7 @@ function Carrito() {
   const isAuthenticated = Boolean(user);
   const hasItems = useMemo(() => (cart.items || []).length > 0, [cart.items]);
   const subtotal = useMemo(
-    () => (cart.items || []).reduce((acc, item) => acc + Number(item.price) * item.quantity, 0),
+    () => (cart.items || []).reduce((acc, item) => acc + Number(item.subtotal ?? (Number(item.price) * item.quantity)), 0),
     [cart.items]
   );
 
@@ -461,7 +461,17 @@ function Carrito() {
                               >
                                 {item.producto?.name || "Producto"}
                               </h2>
-                              <p className="mt-1 text-sm text-[#5b5866]">{formatCurrency(item.price)} c/u</p>
+                              <div className="mt-1">
+                                <p className="text-sm text-[#5b5866]">{formatCurrency(item.price)} c/u</p>
+                                {Number(item.basePrice || item.price) > Number(item.price) ? (
+                                  <p className="text-xs text-[#8b83a6] line-through">{formatCurrency(item.basePrice)} c/u</p>
+                                ) : null}
+                                {item.descuentoAplicado ? (
+                                  <p className="text-xs font-semibold text-[#16786f]">
+                                    Mayoreo aplicado ({item.descuentoAplicado.cantidadMin}-{item.descuentoAplicado.cantidadMax})
+                                  </p>
+                                ) : null}
+                              </div>
                               <div className="mt-3 flex items-center justify-between">
                                 <div className="inline-flex items-center rounded-full border border-[#e6e2f5] bg-white">
                                   <button
@@ -491,6 +501,9 @@ function Carrito() {
                                   <Trash2 size={14} /> Eliminar
                                 </button>
                               </div>
+                              <p className="mt-2 text-sm font-semibold text-[#231f20]">
+                                Subtotal: {formatCurrency(item.subtotal ?? (Number(item.price) * item.quantity))}
+                              </p>
                             </div>
                           </div>
                         </article>

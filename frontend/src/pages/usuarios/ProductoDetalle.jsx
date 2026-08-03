@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Star, ZoomIn, ShoppingCart, ChevronLeft } from "lucide-react";
+import { Star, ZoomIn, ShoppingCart, ChevronLeft, Minus, Plus } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import NavbarPublic from "../../components/usuarios/NavbarPublic";
 import NavbarSesion from "../../components/usuarios/NavbarSesion";
@@ -9,6 +9,7 @@ import FooterUsuario from "../../components/usuarios/FooterUsuario";
 import { productoDetalleService } from "../../api/productoDetalleService";
 import { carritoService } from "../../api/carritoService";
 import { addGuestItemFromProducto, getGuestCartCount } from "../../lib/guestCart";
+import { formatTierLabel, normalizeMayoreoRows, resolveMayoreoPricing } from "../../lib/mayoreoPricing";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:4001/api";
 const STATIC_BASE_URL = API_BASE_URL.replace("/api", "");
@@ -82,6 +83,7 @@ function ProductoDetalle() {
   const [myComment, setMyComment] = useState("");
   const [savingOpinion, setSavingOpinion] = useState(false);
   const [addingToCart, setAddingToCart] = useState(false);
+  const [selectedQuantity, setSelectedQuantity] = useState(1);
 
   const roleValue = user?.rol ?? user?.role ?? user?.rolId ?? user?.ROL_ID;
   const isAdmin = Number(roleValue) === 1 || Number(roleValue) === 2;
@@ -93,6 +95,15 @@ function ProductoDetalle() {
   }, [producto]);
 
   const selectedImage = imagenes[selectedImageIndex] || imagenes[0] || null;
+  const maxStock = Math.max(0, Number(producto?.stock || 0));
+  const mayoreoTiers = useMemo(
+    () => normalizeMayoreoRows(producto?.descuentosMayoreo || []),
+    [producto?.descuentosMayoreo]
+  );
+  const selectedPricing = useMemo(
+    () => resolveMayoreoPricing(producto?.price, selectedQuantity, mayoreoTiers),
+    [producto?.price, selectedQuantity, mayoreoTiers]
+  );
 
   useEffect(() => {
     const loadDetalle = async () => {
@@ -118,6 +129,7 @@ function ProductoDetalle() {
             { stars: 1, count: 0 },
           ],
         });
+        setSelectedQuantity(1);
       } catch (requestError) {
         setProducto(null);
         setOpiniones([]);
@@ -149,6 +161,15 @@ function ProductoDetalle() {
     loadCartCount();
   }, [isLoggedShopUser]);
 
+  useEffect(() => {
+    if (maxStock <= 0) {
+      setSelectedQuantity(1);
+      return;
+    }
+
+    setSelectedQuantity((prev) => Math.min(Math.max(1, prev), maxStock));
+  }, [maxStock]);
+
   const handleAddToCart = async () => {
     if (!producto?.id) return;
 
@@ -156,10 +177,10 @@ function ProductoDetalle() {
       setAddingToCart(true);
 
       if (isLoggedShopUser) {
-        const cart = await carritoService.addItem(producto.id, 1);
+        const cart = await carritoService.addItem(producto.id, selectedQuantity);
         setCartCount(Number(cart?.itemCount || 0));
       } else {
-        const next = addGuestItemFromProducto(producto, 1);
+        const next = addGuestItemFromProducto(producto, selectedQuantity);
         setCartCount(Number(next?.itemCount || 0));
       }
 
@@ -372,13 +393,57 @@ function ProductoDetalle() {
               <div className="mt-6 flex items-end justify-between gap-4">
                 <div>
                   <p className="text-xs uppercase tracking-[0.22em] text-[#8f86a7]">Precio</p>
-                  <p className="mt-1 text-4xl text-[#231f20]" style={{ fontFamily: '"Cormorant Garamond", "Times New Roman", serif' }}>
-                    {formatCurrency(producto.price)}
-                  </p>
+                  {selectedPricing.descuentoAplicado ? (
+                    <>
+                      <p className="mt-1 text-4xl text-[#231f20]" style={{ fontFamily: '"Cormorant Garamond", "Times New Roman", serif' }}>
+                        {formatCurrency(selectedPricing.unitPrice)}
+                      </p>
+                      <p className="text-sm text-[#8b83a6] line-through">{formatCurrency(selectedPricing.basePrice)}</p>
+                      <p className="text-xs font-semibold text-[#16786f]">Ahorro total: {formatCurrency(selectedPricing.ahorroTotal)}</p>
+                    </>
+                  ) : (
+                    <p className="mt-1 text-4xl text-[#231f20]" style={{ fontFamily: '"Cormorant Garamond", "Times New Roman", serif' }}>
+                      {formatCurrency(producto.price)}
+                    </p>
+                  )}
                 </div>
                 <span className={`rounded-full px-3 py-1.5 text-xs font-semibold ${Number(producto.stock || 0) > 0 ? "bg-[#e6fcfb] text-[#108e89]" : "bg-[#fde8f4] text-[#b02a75]"}`}>
                   {Number(producto.stock || 0) > 0 ? "Disponible" : "Agotado"}
                 </span>
+              </div>
+
+              {mayoreoTiers.length > 0 ? (
+                <div className="mt-5 rounded-2xl border border-[#ece7f7] bg-[#fcfbff] p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-[#8f86a7]">Precios por mayoreo</p>
+                  <div className="mt-2 space-y-1 text-sm text-[#4d4466]">
+                    {mayoreoTiers.map((tier) => (
+                      <p key={`${tier.cantidadMin}-${tier.cantidadMax}-${tier.tipoDescuento}`}>
+                        {formatTierLabel(tier)}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="mt-5 flex items-center justify-between rounded-xl border border-[#ece7f7] bg-[#fbf9ff] px-4 py-3">
+                <span className="text-sm font-semibold text-[#4d4466]">Cantidad</span>
+                <div className="inline-flex items-center rounded-full border border-[#e6e2f5] bg-white">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedQuantity((prev) => Math.max(1, prev - 1))}
+                    className="px-3 py-2 text-[#6a40d8]"
+                  >
+                    <Minus size={14} />
+                  </button>
+                  <span className="px-3 text-sm font-medium">{selectedQuantity}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedQuantity((prev) => Math.min(maxStock || 1, prev + 1))}
+                    className="px-3 py-2 text-[#6a40d8]"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
               </div>
 
               <button

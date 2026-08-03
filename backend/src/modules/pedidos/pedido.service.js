@@ -1,9 +1,10 @@
 const { Op } = require('sequelize');
-const { sequelize, Order, OrderItem, Cart, CartItem, Producto, Address, Tarjeta, Payment, Shipment, Notification, Usuario } = require('../../models/loader');
+const { sequelize, Order, OrderItem, Cart, CartItem, Producto, ProductoDescuento, Address, Tarjeta, Payment, Shipment, Notification, Usuario } = require('../../models/loader');
 const HttpError = require('../../utils/httpError');
 const { getOrCreateActiveCart } = require('../carrito/carrito.service');
 const { notifyNuevaOrden } = require('../../services/whatsapp.service');
 const tarjetaService = require('../tarjetas/tarjeta.service');
+const { resolveMayoreoPricing } = require('../../utils/productoDescuento.utils');
 const {
   getRates: getEnviatodoRates,
   getPackageById: getEnviatodoPackageById,
@@ -502,23 +503,59 @@ async function getCartItemsWithDimensions(userId) {
   const productIds = [...new Set((cartRaw.items || []).map((item) => item.productId))];
   const productos = await Producto.findAll({
     where: { id: productIds },
-    attributes: ['id', 'peso', 'alto', 'ancho', 'largo', 'status', 'name', 'stock'],
+    attributes: ['id', 'price', 'peso', 'alto', 'ancho', 'largo', 'status', 'name', 'stock'],
+    include: [
+      {
+        model: ProductoDescuento,
+        as: 'descuentosMayoreo',
+        attributes: ['id', 'productoId', 'cantidadMin', 'cantidadMax', 'tipoDescuento', 'valor'],
+        required: false,
+      },
+    ],
   });
   const productById = new Map(productos.map((p) => [p.id, p]));
 
   const enrichedItems = (cartRaw.items || []).map((item) => {
     const prod = productById.get(item.productId);
+    const pricing = resolveMayoreoPricing({
+      basePrice: prod?.price,
+      quantity: item.quantity,
+      descuentos: prod?.descuentosMayoreo,
+    });
+
     return {
       ...item,
+      price: pricing.unitPrice,
+      basePrice: pricing.basePrice,
+      descuentoAplicado: pricing.descuentoAplicado,
+      subtotal: pricing.subtotal,
       producto: {
         ...item.producto,
         peso: Number(prod?.peso || 0),
         alto: Number(prod?.alto || 0),
         ancho: Number(prod?.ancho || 0),
         largo: Number(prod?.largo || 0),
+        descuentosMayoreo: Array.isArray(prod?.descuentosMayoreo)
+          ? prod.descuentosMayoreo.map((row) => ({
+              id: row.id,
+              productoId: row.productoId,
+              cantidadMin: Number(row.cantidadMin),
+              cantidadMax: Number(row.cantidadMax),
+              tipoDescuento: row.tipoDescuento,
+              valor: Number(row.valor),
+            }))
+          : [],
       },
     };
   });
+
+  await Promise.all(
+    enrichedItems
+      .filter((item) => Math.abs(Number(item.price || 0) - Number((cartRaw.items || []).find((row) => row.id === item.id)?.price || 0)) >= 0.01)
+      .map((item) => CartItem.update({ price: item.price }, { where: { id: item.id } }))
+  );
+
+  cartRaw.items = enrichedItems;
 
   return { cart, cartRaw, items: enrichedItems, productById };
 }

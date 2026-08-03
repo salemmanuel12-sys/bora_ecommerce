@@ -11,6 +11,16 @@ function createAttributeRow() {
   return { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, nombre: "", valor: "" };
 }
 
+function createDiscountRow() {
+  return {
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    cantidadMin: "",
+    cantidadMax: "",
+    tipoDescuento: "PORCENTAJE",
+    valor: "",
+  };
+}
+
 function mapProductoAttributes(atributos = []) {
   return Array.isArray(atributos)
     ? atributos.map((item) => ({
@@ -28,6 +38,32 @@ function normalizeAttributeRows(rows = []) {
       valor: String(row?.valor || "").trim(),
     }))
     .filter((row) => row.nombre || row.valor);
+}
+
+function mapProductoDiscounts(descuentos = []) {
+  return Array.isArray(descuentos)
+    ? descuentos.map((item) => ({
+        id: `${item?.id ?? `desc-${Math.random().toString(16).slice(2)}`}`,
+        cantidadMin: item?.cantidadMin ?? "",
+        cantidadMax: item?.cantidadMax ?? "",
+        tipoDescuento: item?.tipoDescuento || "PORCENTAJE",
+        valor: item?.valor ?? "",
+      }))
+    : [];
+}
+
+function normalizeDiscountRows(rows = []) {
+  return rows
+    .map((row) => ({
+      cantidadMin: Number.parseInt(String(row?.cantidadMin ?? ""), 10),
+      cantidadMax: Number.parseInt(String(row?.cantidadMax ?? ""), 10),
+      tipoDescuento: String(row?.tipoDescuento || "").trim().toUpperCase(),
+      valor: Number(row?.valor),
+    }))
+    .filter((row) => Number.isInteger(row.cantidadMin)
+      || Number.isInteger(row.cantidadMax)
+      || row.tipoDescuento
+      || Number.isFinite(row.valor));
 }
 
 export default function AdminProductos() {
@@ -57,6 +93,7 @@ export default function AdminProductos() {
     sku: "",
     status: true,
     atributos: [],
+    descuentosMayoreo: [],
   });
   const [formErrors, setFormErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -146,6 +183,7 @@ export default function AdminProductos() {
       sku: "",
       status: true,
       atributos: [],
+      descuentosMayoreo: [],
     });
     setFormErrors({});
     setShowModal(true);
@@ -167,6 +205,7 @@ export default function AdminProductos() {
       sku: prod.sku || "",
       status: prod.status,
       atributos: mapProductoAttributes(prod.atributos),
+      descuentosMayoreo: mapProductoDiscounts(prod.descuentosMayoreo),
     });
     setFormErrors({});
     setShowModal(true);
@@ -188,6 +227,8 @@ export default function AdminProductos() {
     if (form.sku && form.sku.length > 100) errors.sku = "Máximo 100 caracteres";
 
     const normalizedAttributes = normalizeAttributeRows(form.atributos);
+    const normalizedDiscounts = normalizeDiscountRows(form.descuentosMayoreo)
+      .sort((left, right) => left.cantidadMin - right.cantidadMin);
     const duplicateKeys = new Set();
 
     for (const row of normalizedAttributes) {
@@ -215,6 +256,55 @@ export default function AdminProductos() {
       }
     }
 
+    for (const row of normalizedDiscounts) {
+      if (!Number.isInteger(row.cantidadMin) || row.cantidadMin <= 0) {
+        errors.descuentosMayoreo = "cantidadMin debe ser un entero mayor a 0.";
+        break;
+      }
+
+      if (!Number.isInteger(row.cantidadMax) || row.cantidadMax <= 0) {
+        errors.descuentosMayoreo = "cantidadMax debe ser un entero mayor a 0.";
+        break;
+      }
+
+      if (row.cantidadMin > row.cantidadMax) {
+        errors.descuentosMayoreo = "cantidadMin no puede ser mayor que cantidadMax.";
+        break;
+      }
+
+      if (!["PORCENTAJE", "MONTO", "PRECIO_FIJO"].includes(row.tipoDescuento)) {
+        errors.descuentosMayoreo = "Tipo de descuento inválido.";
+        break;
+      }
+
+      if (!Number.isFinite(row.valor) || row.valor < 0) {
+        errors.descuentosMayoreo = "Valor de descuento inválido.";
+        break;
+      }
+
+      if (row.tipoDescuento === "PORCENTAJE" && (row.valor <= 0 || row.valor > 100)) {
+        errors.descuentosMayoreo = "En porcentaje, el valor debe estar entre 0.01 y 100.";
+        break;
+      }
+
+      if (row.tipoDescuento === "MONTO" && row.valor <= 0) {
+        errors.descuentosMayoreo = "En monto, el valor debe ser mayor a 0.";
+        break;
+      }
+    }
+
+    if (!errors.descuentosMayoreo) {
+      for (let index = 1; index < normalizedDiscounts.length; index += 1) {
+        const prev = normalizedDiscounts[index - 1];
+        const current = normalizedDiscounts[index];
+
+        if (current.cantidadMin <= prev.cantidadMax) {
+          errors.descuentosMayoreo = "Los rangos de mayoreo no deben traslaparse.";
+          break;
+        }
+      }
+    }
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -236,6 +326,9 @@ export default function AdminProductos() {
         sku: form.sku.trim() || undefined,
         status: form.status,
         atributos: normalizeAttributeRows(form.atributos),
+        descuentosMayoreo: normalizeDiscountRows(form.descuentosMayoreo).sort(
+          (left, right) => left.cantidadMin - right.cantidadMin
+        ),
       };
       if (modalMode === "create") {
         await productosService.create(payload);
@@ -298,6 +391,28 @@ export default function AdminProductos() {
     setForm((current) => ({
       ...current,
       atributos: current.atributos.filter((_, rowIndex) => rowIndex !== index),
+    }));
+  };
+
+  const updateDiscountRow = (index, field, value) => {
+    setForm((current) => {
+      const next = [...current.descuentosMayoreo];
+      next[index] = { ...next[index], [field]: value };
+      return { ...current, descuentosMayoreo: next };
+    });
+  };
+
+  const addDiscountRow = () => {
+    setForm((current) => ({
+      ...current,
+      descuentosMayoreo: [...current.descuentosMayoreo, createDiscountRow()],
+    }));
+  };
+
+  const removeDiscountRow = (index) => {
+    setForm((current) => ({
+      ...current,
+      descuentosMayoreo: current.descuentosMayoreo.filter((_, rowIndex) => rowIndex !== index),
     }));
   };
 
@@ -783,6 +898,87 @@ export default function AdminProductos() {
                 </div>
 
                 {formErrors.atributos && <p className="text-xs text-red-500 mt-3">{formErrors.atributos}</p>}
+              </div>
+
+              <div className="rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 p-4">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Precios por mayoreo</label>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Define rangos por cantidad para porcentaje, monto o precio fijo.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addDiscountRow}
+                    className="px-3 py-2 rounded-lg bg-indigo-700 text-white text-xs font-semibold hover:bg-indigo-800 transition-colors"
+                  >
+                    Agregar rango
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {form.descuentosMayoreo.length === 0 ? (
+                    <p className="text-sm text-gray-400 dark:text-gray-500">Sin rangos de mayoreo.</p>
+                  ) : (
+                    form.descuentosMayoreo.map((row, index) => (
+                      <div key={row.id || index} className="grid grid-cols-1 sm:grid-cols-[0.8fr_0.8fr_1fr_1fr_auto] gap-3 items-end">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Cantidad min</label>
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={row.cantidadMin}
+                            onChange={(event) => updateDiscountRow(index, "cantidadMin", event.target.value)}
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Cantidad max</label>
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={row.cantidadMax}
+                            onChange={(event) => updateDiscountRow(index, "cantidadMax", event.target.value)}
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Tipo</label>
+                          <select
+                            value={row.tipoDescuento}
+                            onChange={(event) => updateDiscountRow(index, "tipoDescuento", event.target.value)}
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="PORCENTAJE">PORCENTAJE</option>
+                            <option value="MONTO">MONTO</option>
+                            <option value="PRECIO_FIJO">PRECIO_FIJO</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Valor</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={row.valor}
+                            onChange={(event) => updateDiscountRow(index, "valor", event.target.value)}
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeDiscountRow(index)}
+                          className="px-3 py-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-400 dark:hover:bg-red-900/20 text-sm"
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {formErrors.descuentosMayoreo && <p className="text-xs text-red-500 mt-3">{formErrors.descuentosMayoreo}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Estado</label>

@@ -7,8 +7,13 @@ const {
   AtributoValor,
   ProductoAtributo,
   ProductoImagen,
+  ProductoDescuento,
 } = require('../../models/loader');
 const HttpError = require('../../utils/httpError');
+const {
+  mapDescuentoPublic,
+  normalizeDescuentosMayoreoInput,
+} = require('../../utils/productoDescuento.utils');
 
 function sanitizeText(value = '', maxLength = 255) {
   return String(value).trim().replace(/[<>"'&]/g, '').slice(0, maxLength);
@@ -152,6 +157,25 @@ async function syncProductoAtributos(productoId, atributos, transaction) {
   }
 }
 
+async function syncProductoDescuentos(productoId, descuentosMayoreo, transaction) {
+  await ProductoDescuento.destroy({ where: { productoId }, transaction });
+
+  if (!descuentosMayoreo.length) {
+    return;
+  }
+
+  await ProductoDescuento.bulkCreate(
+    descuentosMayoreo.map((row) => ({
+      productoId,
+      cantidadMin: row.cantidadMin,
+      cantidadMax: row.cantidadMax,
+      tipoDescuento: row.tipoDescuento,
+      valor: row.valor,
+    })),
+    { transaction }
+  );
+}
+
 function toPublicProducto(producto) {
   const item = producto?.get ? producto.get({ plain: true }) : producto;
   const atributos = Array.isArray(item.atributosAsignaciones)
@@ -203,6 +227,17 @@ function toPublicProducto(producto) {
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
     atributos,
+    descuentosMayoreo: Array.isArray(item.descuentosMayoreo)
+      ? item.descuentosMayoreo
+          .map((row) => mapDescuentoPublic(row))
+          .sort((left, right) => {
+            if (left.cantidadMin !== right.cantidadMin) {
+              return left.cantidadMin - right.cantidadMin;
+            }
+
+            return left.cantidadMax - right.cantidadMax;
+          })
+      : [],
     imagenes: Array.isArray(item.imagenes)
       ? item.imagenes.map((img) => ({
           id: img.id,
@@ -267,6 +302,13 @@ const includeAtributos = {
   ],
 };
 
+const includeDescuentosMayoreo = {
+  model: ProductoDescuento,
+  as: 'descuentosMayoreo',
+  attributes: ['id', 'productoId', 'cantidadMin', 'cantidadMax', 'tipoDescuento', 'valor', 'createdAt', 'updatedAt'],
+  required: false,
+};
+
 async function assertCategoriaExists(categoriaId) {
   const categoria = await Categoria.findByPk(categoriaId);
 
@@ -314,7 +356,7 @@ async function listProductos({
 
   const { count, rows } = await Producto.findAndCountAll({
     where,
-    include: [buildIncludeCategoria(categoria), includeImagenes, includeAtributos],
+    include: [buildIncludeCategoria(categoria), includeImagenes, includeAtributos, includeDescuentosMayoreo],
     order: [['id', 'ASC']],
     distinct: true,
     limit: parsedLimit,
@@ -340,7 +382,7 @@ async function getProductoById(productoId) {
   }
 
   const producto = await Producto.findByPk(parsedProductoId, {
-    include: [buildIncludeCategoria(''), includeImagenes, includeAtributos],
+    include: [buildIncludeCategoria(''), includeImagenes, includeAtributos, includeDescuentosMayoreo],
   });
 
   if (!producto) {
@@ -373,6 +415,7 @@ async function createProducto({
   sku,
   status = true,
   atributos = [],
+  descuentosMayoreo = [],
 }) {
   const parsedCategoriaId = Number.parseInt(String(categoriaId), 10);
 
@@ -401,6 +444,11 @@ async function createProducto({
   }
 
   const normalizedAtributos = normalizeAtributos(atributos);
+  const normalizedDescuentosMayoreo = normalizeDescuentosMayoreoInput(descuentosMayoreo);
+
+  if (normalizedDescuentosMayoreo === null) {
+    throw new HttpError(400, 'descuentosMayoreo invalido. Usa rangos sin traslape con cantidadMin, cantidadMax, tipoDescuento y valor.');
+  }
 
   const producto = await sequelize.transaction(async (transaction) => {
     const createdProducto = await Producto.create(
@@ -421,6 +469,7 @@ async function createProducto({
     );
 
     await syncProductoAtributos(createdProducto.id, normalizedAtributos, transaction);
+    await syncProductoDescuentos(createdProducto.id, normalizedDescuentosMayoreo, transaction);
 
     return createdProducto;
   });
@@ -442,6 +491,7 @@ async function updateProducto({
   sku,
   status,
   atributos = [],
+  descuentosMayoreo,
 }) {
   const parsedProductoId = Number.parseInt(String(productoId), 10);
 
@@ -489,6 +539,13 @@ async function updateProducto({
   }
 
   const normalizedAtributos = normalizeAtributos(atributos);
+  const normalizedDescuentosMayoreo = descuentosMayoreo === undefined
+    ? undefined
+    : normalizeDescuentosMayoreoInput(descuentosMayoreo);
+
+  if (normalizedDescuentosMayoreo === null) {
+    throw new HttpError(400, 'descuentosMayoreo invalido. Usa rangos sin traslape con cantidadMin, cantidadMax, tipoDescuento y valor.');
+  }
 
   const payload = {
     categoriaId: targetCategoriaId,
@@ -525,6 +582,10 @@ async function updateProducto({
   await sequelize.transaction(async (transaction) => {
     await producto.update(payload, { transaction });
     await syncProductoAtributos(producto.id, normalizedAtributos, transaction);
+
+    if (normalizedDescuentosMayoreo !== undefined) {
+      await syncProductoDescuentos(producto.id, normalizedDescuentosMayoreo, transaction);
+    }
   });
 
   return getProductoById(producto.id);
@@ -570,6 +631,7 @@ async function deleteProducto({ productoId }) {
   await OrderItem.destroy({ where: { productId: parsedProductoId } });
   await CartItem.destroy({ where: { productId: parsedProductoId } });
   await Opinion.destroy({ where: { productoId: parsedProductoId } });
+  await ProductoDescuento.destroy({ where: { productoId: parsedProductoId } });
   await ProductoImagen.destroy({ where: { productoId: parsedProductoId } });
   await ProductoAtributo.destroy({ where: { productoId: parsedProductoId } });
   await producto.destroy();
